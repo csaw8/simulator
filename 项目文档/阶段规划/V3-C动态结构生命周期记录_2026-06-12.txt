@@ -1,0 +1,57 @@
+Terrarium Project V3-C 动态结构生命周期记录
+
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-C |
+| 目标 | 避免 DynamicStructure 长期无限堆积，并让旧结构逐步退出活跃观察面 |
+| 原则 | 不新建重系统，不删除历史结构，不污染固定对象字段 |
+| 生命周期位置 | `WorldEngine.step()` 末尾，pressure thread 刷新之后 |
+
+二、生命周期规则
+
+| 条件 | 状态 |
+|---|---|
+| 当 tick 有直接 `dynamic_structure_refs` 事件 | `active`，并刷新 `updated_tick` |
+| 距离 `updated_tick` 超过 8 tick | `cooling` |
+| 距离 `updated_tick` 超过 20 tick | `archived` |
+
+关键判断：
+
+| 设计点 | 原因 |
+|---|---|
+| 普通 region/relic/project 事件不刷新 DynamicStructure | 避免只要地区有事件，动态结构就永远不归档 |
+| `archived` 不删除 | 保留审计、历史查询和快照可追踪性 |
+| `archived` 不进入固定对象活跃动态线索块 | 避免旧结构污染当前观察面 |
+| 直接 dynamic update 事件可恢复 `active` | 后续 V3-D/V3-F 可以用 update proposal 重新激活旧结构 |
+
+三、实现范围
+
+| 文件 | 内容 |
+|---|---|
+| `src/core/engine.py` | 新增 `_refresh_dynamic_structure_lifecycle(...)`，并接入 `WorldEngine.step()` |
+| `src/core/ai_context.py` | `nearby_dynamic_structures` 排除 `archived` 结构 |
+| `tests/test_dynamic_structures.py` | 增加 cooling / archived / reactivation / AI context 排除测试 |
+
+四、验证
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_dynamic_structures` | 9 tests OK |
+| `python -m unittest discover -s tests` | 81 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+五、结论
+
+| 项 | 结论 |
+|---|---|
+| V3-C 是否完成 | 完成 |
+| 是否解决无限活跃堆积 | 初版已解决 |
+| 是否保留历史可追踪性 | 是 |
+| 是否影响固定结构 | 否 |
+| 下一步 | V3-D：动态结构去重与合并 |
+
+V3-C 完成后，DynamicStructure 已具备最小生命周期：可活跃、可降温、可归档、可被直接更新事件重新激活。后续可以在 V3-D 中处理重复 proposal，把相似结构转为 update 或 reject，而不是持续创建新结构。

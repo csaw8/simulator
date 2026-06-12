@@ -4,8 +4,10 @@ from pathlib import Path
 
 from src.config.defaults import DEFAULT_AI_CONFIG, DEFAULT_WORLD_CONFIG
 from src.config.models import AIConfig, WorldConfig
+from src.core.ai_context import build_dynamic_structure_context
 from src.core.dynamic_structure_proposals import apply_dynamic_structure_proposals
-from src.core.engine import WorldEngine
+from src.core.engine import WorldEngine, _refresh_dynamic_structure_lifecycle
+from src.events.models import Event
 from src.events.query import select_events
 from src.interfaces.commands import CommandContext, handle_command
 from src.interfaces.stream_view import format_status
@@ -140,6 +142,61 @@ class DynamicStructureTests(unittest.TestCase):
                 self.assertIn("North Lockdown Belt", truth_text)
                 self.assertNotIn("dyn_", player_text)
                 self.assertNotIn("dynamic_structures:", player_text)
+
+    def test_dynamic_structure_lifecycle_cools_and_archives_stale_structures(self) -> None:
+        world = _build_world()
+        structure_id = apply_dynamic_structure_proposals(world, _sample_payload(world)).accepted[0]
+        structure = world.dynamic_structures[structure_id]
+
+        world.current_tick = structure.updated_tick + 9
+        _refresh_dynamic_structure_lifecycle(world, [])
+        self.assertEqual(structure.status, "cooling")
+
+        world.current_tick = structure.updated_tick + 21
+        _refresh_dynamic_structure_lifecycle(world, [])
+        self.assertEqual(structure.status, "archived")
+
+        region_id = next(iter(world.regions))
+        player_text = summarize_region(world, region_id, event_limit=5, mode="full", view="player")
+        truth_text = summarize_region(world, region_id, event_limit=5, mode="full", view="truth")
+        self.assertIn("动态线索: 外界暂未看出稳定动态牵连", player_text)
+        self.assertIn("dynamic_structures: None", truth_text)
+
+    def test_dynamic_structure_direct_event_reactivates_archived_structure(self) -> None:
+        world = _build_world()
+        structure_id = apply_dynamic_structure_proposals(world, _sample_payload(world)).accepted[0]
+        structure = world.dynamic_structures[structure_id]
+        structure.status = "archived"
+        world.current_tick = 30
+        event = Event(
+            event_id="event_dynamic_refresh",
+            tick=30,
+            time_granularity="week",
+            event_type="dynamic_structure_updated",
+            event_scope="dynamic_structure",
+            title="Dynamic refresh",
+            summary="The dynamic structure was refreshed by a direct event.",
+            dynamic_structure_refs=[structure_id],
+        )
+
+        _refresh_dynamic_structure_lifecycle(world, [event])
+
+        self.assertEqual(structure.status, "active")
+        self.assertEqual(structure.updated_tick, 30)
+
+    def test_archived_dynamic_structures_are_excluded_from_ai_context(self) -> None:
+        world = _build_world()
+        structure_id = apply_dynamic_structure_proposals(world, _sample_payload(world)).accepted[0]
+        world.dynamic_structures[structure_id].status = "archived"
+        region_id = next(iter(world.regions))
+
+        context = build_dynamic_structure_context(
+            world,
+            target_type="region",
+            target_id=region_id,
+        )
+
+        self.assertEqual(context["nearby_dynamic_structures"], [])
 
     def test_dynamic_structures_are_preserved_in_snapshots(self) -> None:
         world = _build_world()

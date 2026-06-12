@@ -88,6 +88,7 @@ class WorldEngine:
         _refresh_relic_contests(self.world, all_events)
         _refresh_region_nodes(self.world, all_events)
         _refresh_pressure_threads(self.world, all_events)
+        _refresh_dynamic_structure_lifecycle(self.world, all_events)
         _refresh_objective_feedback_relations(self.world)
         chronicle = generate_chronicle(all_events, self.ai_config)
         return StepResult(
@@ -984,6 +985,33 @@ def _refresh_pressure_threads(world: WorldState, events: list[Event]) -> None:
                 thread.status = _pressure_thread_status(thread, world)
                 thread.summary = _summarize_pressure_thread(world, thread)
     _prune_pressure_threads(world)
+
+
+def _refresh_dynamic_structure_lifecycle(world: WorldState, events: list[Event]) -> None:
+    direct_event_ticks: dict[str, int] = {}
+    for event in events:
+        for structure_id in event.dynamic_structure_refs:
+            direct_event_ticks[structure_id] = max(
+                direct_event_ticks.get(structure_id, event.tick),
+                event.tick,
+            )
+
+    for structure in world.dynamic_structures.values():
+        if structure.structure_id in direct_event_ticks:
+            structure.updated_tick = max(
+                structure.updated_tick,
+                direct_event_ticks[structure.structure_id],
+            )
+            structure.status = "active"
+            continue
+
+        idle_ticks = world.current_tick - structure.updated_tick
+        if idle_ticks > 20:
+            structure.status = "archived"
+        elif idle_ticks > 8:
+            structure.status = "cooling"
+        elif structure.status not in {"active", "cooling", "archived"}:
+            structure.status = "active"
 
 
 def _pressure_thread_scope_refs(event: Event) -> list[str]:

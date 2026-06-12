@@ -60,7 +60,8 @@ def build_dynamic_structure_context(
             "linked_refs": structure.linked_refs,
         }
         for structure in world.dynamic_structures.values()
-        if target_id in structure.scope_refs or target_id in structure.linked_refs
+        if structure.status != "archived"
+        and (target_id in structure.scope_refs or target_id in structure.linked_refs)
     ][:6]
     signal_score = _dynamic_structure_context_signal_from_parts(
         recent_events=recent_events,
