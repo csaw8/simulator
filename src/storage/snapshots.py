@@ -8,6 +8,7 @@ from pathlib import Path
 
 from src.events.models import Event
 from src.events.stream import EventStream
+from src.world.ai_audit import AIProposalAudit
 from src.world.character import Character
 from src.world.civilization import Civilization
 from src.world.dynamic_structure import DynamicStructure
@@ -47,6 +48,7 @@ def save_world_state(world: WorldState, path: Path = DEFAULT_SNAPSHOT_PATH) -> N
         "supply_lines": {key: asdict(value) for key, value in world.supply_lines.items()},
         "region_nodes": {key: asdict(value) for key, value in world.region_nodes.items()},
         "dynamic_structures": {key: asdict(value) for key, value in world.dynamic_structures.items()},
+        "ai_proposal_audits": {key: asdict(value) for key, value in world.ai_proposal_audits.items()},
         "pressure_threads": {key: asdict(value) for key, value in world.pressure_threads.items()},
         "relations": {key: asdict(value) for key, value in world.relations.items()},
         "event_stream": {
@@ -91,6 +93,9 @@ def load_world_state(path: Path = DEFAULT_SNAPSHOT_PATH) -> WorldState:
     }
     world.dynamic_structures = {
         key: DynamicStructure(**value) for key, value in payload.get("dynamic_structures", {}).items()
+    }
+    world.ai_proposal_audits = {
+        key: AIProposalAudit(**value) for key, value in payload.get("ai_proposal_audits", {}).items()
     }
     world.pressure_threads = {
         key: PressureThread(**value) for key, value in payload.get("pressure_threads", {}).items()

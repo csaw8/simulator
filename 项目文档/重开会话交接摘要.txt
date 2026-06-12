@@ -44,6 +44,17 @@ AI 动态结构试点也已接入：
 | CLI apply | `watch region region_04 full truth apply=dynamic` |
 | 测试 | `tests/test_dynamic_structure_ai.py` 覆盖 dry-run、apply、拒绝、无客户端不污染 |
 
+AI proposal 审计已完成：
+
+| 项 | 说明 |
+|---|---|
+| 数据层 | `src/world/ai_audit.py` |
+| 状态字段 | `WorldState.ai_proposal_audits` |
+| CLI | `audit proposals [n]` |
+| 输出 | dynamic proposal block 会显示 `audit_id` |
+| 快照 | save/load 已覆盖 |
+| 当前测试 | 全量 75 tests OK |
+
 最近验证：
 
 | 命令 | 结果 |

@@ -19,6 +19,7 @@ from src.core.dynamic_structure_proposals import (
     apply_dynamic_structure_proposals,
     validate_dynamic_structure_proposals,
 )
+from src.world.ai_audit import AIProposalAudit
 from src.world.state import WorldState
 
 PROMPT_ROOT = Path("prompts")
@@ -35,6 +36,7 @@ class DynamicStructureAIResult:
     error: str | None = None
     tier: str | None = None
     signal_score: int = 0
+    audit_id: str | None = None
 
 
 def propose_dynamic_structures_for_watch(
@@ -55,7 +57,9 @@ def propose_dynamic_structures_for_watch(
         target_id=target_id,
     )
     if context.get("error"):
-        return DynamicStructureAIResult(source="none", applied=False, error=str(context["error"]))
+        result = DynamicStructureAIResult(source="none", applied=False, error=str(context["error"]))
+        _record_dynamic_structure_audit(world, result, target_type=target_type, target_id=target_id)
+        return result
 
     signal_score = dynamic_structure_context_signal(context)
     decision = evaluate_observer_llm_policy(
@@ -65,24 +69,28 @@ def propose_dynamic_structures_for_watch(
         signal_score=signal_score,
     )
     if not decision.allowed:
-        return DynamicStructureAIResult(
+        result = DynamicStructureAIResult(
             source="none",
             applied=False,
             error=decision.reason,
             signal_score=signal_score,
             tier=_dynamic_structure_tier(ai_config).tier,
         )
+        _record_dynamic_structure_audit(world, result, target_type=target_type, target_id=target_id)
+        return result
 
     llm_client = client or build_siliconflow_client(ai_config)
     tier = _dynamic_structure_tier(ai_config)
     if llm_client is None:
-        return DynamicStructureAIResult(
+        result = DynamicStructureAIResult(
             source="none",
             applied=False,
             error="SiliconFlow client unavailable",
             tier=tier.tier,
             signal_score=signal_score,
         )
+        _record_dynamic_structure_audit(world, result, target_type=target_type, target_id=target_id)
+        return result
 
     try:
         payload = llm_client.create_json_completion_with_limits(
@@ -97,7 +105,7 @@ def propose_dynamic_structures_for_watch(
             if apply
             else validate_dynamic_structure_proposals(world, payload)
         )
-        return DynamicStructureAIResult(
+        result = DynamicStructureAIResult(
             source="siliconflow",
             applied=apply,
             payload=payload,
@@ -105,14 +113,18 @@ def propose_dynamic_structures_for_watch(
             tier=tier.tier,
             signal_score=signal_score,
         )
+        _record_dynamic_structure_audit(world, result, target_type=target_type, target_id=target_id)
+        return result
     except LLMClientError as exc:
-        return DynamicStructureAIResult(
+        result = DynamicStructureAIResult(
             source="none",
             applied=False,
             error=str(exc),
             tier=tier.tier,
             signal_score=signal_score,
         )
+        _record_dynamic_structure_audit(world, result, target_type=target_type, target_id=target_id)
+        return result
 
 
 def format_dynamic_structure_ai_result(result: DynamicStructureAIResult) -> str:
@@ -122,6 +134,8 @@ def format_dynamic_structure_ai_result(result: DynamicStructureAIResult) -> str:
     lines.append(f"  mode: {'apply' if result.applied else 'dry-run'}")
     if result.tier:
         lines.append(f"  tier: {result.tier}")
+    if result.audit_id:
+        lines.append(f"  audit_id: {result.audit_id}")
     lines.append(f"  signal_score: {result.signal_score}")
     if result.error:
         lines.append(f"  error: {result.error}")
@@ -132,6 +146,79 @@ def format_dynamic_structure_ai_result(result: DynamicStructureAIResult) -> str:
     for item in result.validation.rejected[:3]:
         lines.append(f"    rejected_reason: {item}")
     return "\n".join(lines)
+
+
+def format_ai_proposal_audits(world: WorldState, *, limit: int = 10) -> str:
+    """Render recent AI proposal audit records."""
+    audits = sorted(
+        world.ai_proposal_audits.values(),
+        key=lambda audit: (audit.tick, audit.audit_id),
+        reverse=True,
+    )[: max(1, limit)]
+    if not audits:
+        return "No AI proposal audits recorded."
+    lines = [f"AI proposal audits ({len(audits)} shown):"]
+    for audit in audits:
+        lines.append(
+            f"  - {audit.audit_id}: type={audit.proposal_type}, "
+            f"target={audit.target_type}:{audit.target_id}, "
+            f"mode={audit.mode}, source={audit.source}, applied={audit.applied}, "
+            f"accepted={len(audit.accepted_refs)}, rejected={len(audit.rejected_reasons)}, "
+            f"error={audit.error or 'None'}"
+        )
+    return "\n".join(lines)
+
+
+def _record_dynamic_structure_audit(
+    world: WorldState,
+    result: DynamicStructureAIResult,
+    *,
+    target_type: str,
+    target_id: str,
+) -> None:
+    audit_id = _new_ai_proposal_audit_id(world)
+    audit = AIProposalAudit(
+        audit_id=audit_id,
+        tick=world.current_tick,
+        source=result.source,
+        proposal_type="dynamic_structure",
+        target_type=target_type,
+        target_id=target_id,
+        mode="apply" if result.applied else "dry-run",
+        applied=result.applied,
+        accepted_refs=list(result.validation.accepted),
+        rejected_reasons=list(result.validation.rejected),
+        payload=result.payload,
+        error=result.error,
+        tier=result.tier,
+        signal_score=result.signal_score,
+    )
+    world.ai_proposal_audits[audit_id] = audit
+    result.audit_id = audit_id
+    _prune_ai_proposal_audits(world, limit=80)
+
+
+def _new_ai_proposal_audit_id(world: WorldState) -> str:
+    next_index = len(world.ai_proposal_audits) + 1
+    while True:
+        audit_id = f"audit_{next_index:05d}"
+        if audit_id not in world.ai_proposal_audits:
+            return audit_id
+        next_index += 1
+
+
+def _prune_ai_proposal_audits(world: WorldState, *, limit: int) -> None:
+    if len(world.ai_proposal_audits) <= limit:
+        return
+    ordered = sorted(
+        world.ai_proposal_audits.values(),
+        key=lambda audit: (audit.tick, audit.audit_id),
+        reverse=True,
+    )
+    keep = {audit.audit_id for audit in ordered[:limit]}
+    for audit_id in list(world.ai_proposal_audits):
+        if audit_id not in keep:
+            del world.ai_proposal_audits[audit_id]
 
 
 def _dynamic_structure_tier(ai_config: dict[str, object]):

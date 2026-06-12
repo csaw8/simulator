@@ -39,6 +39,8 @@
 - `watch dynamic dyn_0001 full player`
 - `watch region region_04 full truth propose=dynamic`
 - `watch region region_04 full truth apply=dynamic`
+- `audit proposals`
+- `audit proposals 5`
 
 四、focus 过滤示例
 

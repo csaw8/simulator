@@ -93,3 +93,16 @@ Terrarium Project 第二阶段封口交接
 | 当前验证 | 全量测试 73 个通过 |
 
 下一步建议：在真实 SiliconFlow 可用时，先用 `propose=dynamic` 观察 AI proposal 质量；确认稳定后再小规模使用 `apply=dynamic`。
+
+十、AI proposal 审计已完成
+
+| 项 | 结果 |
+|---|---|
+| 审计模型 | `AIProposalAudit` |
+| 状态字段 | `WorldState.ai_proposal_audits` |
+| CLI | `audit proposals [n]` |
+| 快照 | 已保存/读取 |
+| 输出追踪 | 每次 dynamic proposal 输出 `audit_id` |
+| 当前验证 | 全量测试 75 个通过 |
+
+下一步建议：进行真实联网 dry-run 抽样，优先收集 5-10 条 `propose=dynamic` 的 audit 记录，只评估 proposal 合法率与可用性，不急于批量 apply。

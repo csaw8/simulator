@@ -7,6 +7,7 @@ from src.config.models import AIConfig, WorldConfig
 from src.core.dynamic_structure_ai import propose_dynamic_structures_for_watch
 from src.core.engine import WorldEngine
 from src.interfaces.commands import CommandContext, handle_command
+from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 
 
@@ -85,6 +86,11 @@ class DynamicStructureAITests(unittest.TestCase):
         self.assertEqual(len(result.validation.accepted), 1)
         self.assertEqual(len(world.dynamic_structures), before_count)
         self.assertEqual(len(client.calls), 1)
+        self.assertIsNotNone(result.audit_id)
+        self.assertEqual(len(world.ai_proposal_audits), 1)
+        audit = world.ai_proposal_audits[result.audit_id]
+        self.assertFalse(audit.applied)
+        self.assertEqual(audit.accepted_refs, ["proposal[0]"])
 
     def test_dynamic_structure_ai_apply_writes_only_through_validated_layer(self) -> None:
         world = _world_with_signal()
@@ -107,6 +113,11 @@ class DynamicStructureAITests(unittest.TestCase):
         self.assertIn(structure_id, world.dynamic_structures)
         self.assertTrue(any(event.dynamic_structure_refs for event in world.event_stream.events))
         self.assertTrue(any(relation.source_ref == structure_id for relation in world.relations.values()))
+        self.assertIsNotNone(result.audit_id)
+        audit = world.ai_proposal_audits[result.audit_id]
+        self.assertTrue(audit.applied)
+        self.assertEqual(audit.accepted_refs, [structure_id])
+        self.assertIsNotNone(audit.payload)
 
     def test_dynamic_structure_ai_rejects_invalid_payload_without_mutating_world(self) -> None:
         world = _world_with_signal()
@@ -138,6 +149,9 @@ class DynamicStructureAITests(unittest.TestCase):
         self.assertFalse(result.validation.accepted)
         self.assertTrue(result.validation.rejected)
         self.assertFalse(world.dynamic_structures)
+        self.assertEqual(len(world.ai_proposal_audits), 1)
+        audit = next(iter(world.ai_proposal_audits.values()))
+        self.assertTrue(audit.rejected_reasons)
 
     def test_cli_dynamic_proposal_without_client_does_not_mutate_world(self) -> None:
         world = _world_with_signal()
@@ -156,7 +170,53 @@ class DynamicStructureAITests(unittest.TestCase):
 
         self.assertIn("Dynamic structure proposal:", output)
         self.assertIn("SiliconFlow client unavailable", output)
+        self.assertIn("audit_id:", output)
         self.assertFalse(world.dynamic_structures)
+        self.assertEqual(len(world.ai_proposal_audits), 1)
+
+    def test_cli_audit_proposals_lists_recent_records(self) -> None:
+        world = _world_with_signal()
+        cfg = _cfg()
+        with tempfile.TemporaryDirectory() as tmp:
+            context = CommandContext(
+                engine=WorldEngine(world, ai_config=cfg),
+                world_config=WorldConfig(**DEFAULT_WORLD_CONFIG),
+                ai_config=AIConfig(**cfg),
+                snapshot_path=Path(tmp) / "world.json",
+            )
+            handle_command(
+                context,
+                f"watch region {next(iter(world.regions))} full truth propose=dynamic",
+            )
+            output = handle_command(context, "audit proposals 3")
+
+        self.assertIn("AI proposal audits", output)
+        self.assertIn("audit_", output)
+        self.assertIn("dynamic_structure", output)
+
+    def test_ai_proposal_audits_are_preserved_in_snapshots(self) -> None:
+        world = _world_with_signal()
+        client = FakeProposalClient(_payload(world))
+        result = propose_dynamic_structures_for_watch(
+            world,
+            target_type="region",
+            target_id=next(iter(world.regions)),
+            ai_config=_cfg(),
+            mode="full",
+            view="truth",
+            apply=False,
+            client=client,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "world.json"
+            save_world_state(world, path)
+            loaded = load_world_state(path)
+
+        self.assertIn(result.audit_id, loaded.ai_proposal_audits)
+        audit = loaded.ai_proposal_audits[result.audit_id]
+        self.assertEqual(audit.proposal_type, "dynamic_structure")
+        self.assertEqual(audit.accepted_refs, ["proposal[0]"])
 
 
 if __name__ == "__main__":

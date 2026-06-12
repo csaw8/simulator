@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from src.world.ai_audit import AIProposalAudit
 from src.world.character import Character
 from src.world.civilization import Civilization
 from src.events.stream import EventStream
@@ -35,6 +36,7 @@ class WorldState:
     supply_lines: dict[str, SupplyLine] = field(default_factory=dict)
     region_nodes: dict[str, RegionNode] = field(default_factory=dict)
     dynamic_structures: dict[str, DynamicStructure] = field(default_factory=dict)
+    ai_proposal_audits: dict[str, AIProposalAudit] = field(default_factory=dict)
     pressure_threads: dict[str, PressureThread] = field(default_factory=dict)
     relations: dict[str, Relation] = field(default_factory=dict)
     event_stream: EventStream = field(default_factory=EventStream)
@@ -67,6 +69,7 @@ class WorldState:
             "supply_lines": len(self.supply_lines),
             "region_nodes": len(self.region_nodes),
             "dynamic_structures": len(self.dynamic_structures),
+            "ai_proposal_audits": len(self.ai_proposal_audits),
             "pressure_threads": len(self.pressure_threads),
             "relations": len(self.relations),
             "events": len(self.event_stream.events),

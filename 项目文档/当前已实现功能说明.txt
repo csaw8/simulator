@@ -36,6 +36,17 @@ Terrarium Project 当前已实现功能说明
 | 失败保护 | 无客户端、脏 payload、未知 refs、非法类型都不会污染 world |
 | 成本控制 | `dynamic_structure_cost_tier` 默认使用 `low` |
 
+2026-06-12 AI proposal 审计补充
+
+| 类别 | 已实现 |
+|---|---|
+| 审计数据层 | 新增 `AIProposalAudit`，存放在 `WorldState.ai_proposal_audits` |
+| 自动记录 | dynamic proposal 的 dry-run、apply、失败、拒绝都会记录 audit |
+| CLI 查询 | 新增 `audit proposals [n]` |
+| 输出追踪 | `propose=dynamic/apply=dynamic` 输出 `audit_id` |
+| 快照 | `ai_proposal_audits` 已接入 save/load |
+| 限流 | 审计记录最多保留最近 80 条 |
+
 一、项目定位
 
 这是一个以“观察者视角”为核心的文字世界模拟器。
