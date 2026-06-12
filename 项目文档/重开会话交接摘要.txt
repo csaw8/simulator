@@ -141,9 +141,9 @@ AI 动态结构第一版已完成：
 
 四、当前最重要的文件
 
-- 当前版本完成度与缺口清单.txt
-- 下一阶段开发排期.txt
-- 当前已实现功能说明.txt
+- 项目文档/当前版本完成度与缺口清单.txt
+- 项目文档/下一阶段开发排期.txt
+- 项目文档/当前已实现功能说明.txt
 - src/core/engine.py
 - src/narrative/summaries.py
 - src/rules/faction_actions.py
@@ -173,9 +173,9 @@ AI 动态结构第一版已完成：
 codex -C D:\codex\Terrarium_Project -s danger-full-access -a on-failure --search -c shell_environment_policy.inherit=all
 
 如果使用新会话，建议先读取：
-- 当前版本完成度与缺口清单.txt
-- 下一阶段开发排期.txt
-- 当前已实现功能说明.txt
+- 项目文档/当前版本完成度与缺口清单.txt
+- 项目文档/下一阶段开发排期.txt
+- 项目文档/当前已实现功能说明.txt
 - 本文件
 
 
@@ -184,10 +184,10 @@ codex -C D:\codex\Terrarium_Project -s danger-full-access -a on-failure --search
 继续 D:\codex\Terrarium_Project 这个项目。
 
 先读取：
-- 当前版本完成度与缺口清单.txt
-- 下一阶段开发排期.txt
-- 当前已实现功能说明.txt
-- 重开会话交接摘要.txt
+- 项目文档/当前版本完成度与缺口清单.txt
+- 项目文档/下一阶段开发排期.txt
+- 项目文档/当前已实现功能说明.txt
+- 项目文档/重开会话交接摘要.txt
 
 然后继续做观察输出收口与 player 信息隔离细化。
 优先处理：
