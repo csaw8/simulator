@@ -1,0 +1,161 @@
+Terrarium Project 第五阶段半开放结构生成规划
+
+日期：2026-06-12
+
+一、阶段定位
+
+| 项 | 内容 |
+|---|---|
+| 阶段 | 第五阶段 |
+| 名称 | 半开放结构生成与 AI 模板提案阶段 |
+| 核心目标 | 在不让 AI 直接修改固定 schema 的前提下，允许 AI 提出新的结构模板，并让系统在审批后实例化这些模板 |
+| 前置阶段 | 第三阶段 AI 动态结构闭环、第四阶段风格解耦与题材配置 |
+| 不做事项 | 不让 AI 直接新增 Python dataclass，不让 AI 直接写 WorldState 新字段，不让 AI 绕过 validator / audit / approval |
+
+第五阶段解决的问题不是“让 AI 完全自由”，而是让 AI 的创造力进入一个可验证、可回滚、可审计的结构模板层。
+
+二、为什么不放在第三阶段或第四阶段
+
+| 阶段 | 不适合直接做的原因 |
+|---|---|
+| 第三阶段 | 当前重点是 DynamicStructure / EmergentPresence 的受控落库、观察、生命周期和审计；过早开放 schema 会破坏稳定性 |
+| 第四阶段 | 第四阶段重点是 WorldStyleProfile / NarrativeLexicon，负责风格边界和题材词表，不应同时承担结构生成风险 |
+| 第五阶段 | DynamicStructure、EmergentPresence、风格 profile 都稳定后，才有足够边界去做半开放模板生成 |
+
+三、核心设计原则
+
+| 原则 | 说明 |
+|---|---|
+| 模板先于实例 | AI 先提出结构模板，模板通过审批后才能创建实例 |
+| JSON 模板而非代码 | AI 输出受限 JSON，不输出 Python 类、不改数据库 schema |
+| registry 管控 | approved template registry 是唯一可实例化来源 |
+| 影响通道固定 | 新模板实例只能通过 Event / Relation / PressureThread / NarrativeObservation 影响世界 |
+| 审计优先 | template proposal、validation、approval、instantiation 都必须进入 audit |
+| 可回滚 | 模板可以禁用、冻结、版本化；实例可以 archived，不直接删除历史 |
+| 查询成本可控 | 模板字段数量、索引字段、生命周期策略必须受限 |
+
+四、推荐数据结构草案
+
+1. `StructureTemplateProposal`
+
+```python
+@dataclass(slots=True)
+class StructureTemplateProposal:
+    proposal_id: str
+    title: str
+    rationale: str
+    template_kind: str
+    fields: list[TemplateFieldSpec]
+    lifecycle: TemplateLifecycleSpec
+    allowed_effects: list[str]
+    style_constraints: list[str]
+    safety_notes: list[str]
+    source: str
+    created_at_tick: int
+```
+
+2. `ApprovedStructureTemplate`
+
+```python
+@dataclass(slots=True)
+class ApprovedStructureTemplate:
+    template_id: str
+    version: int
+    title: str
+    template_kind: str
+    fields: list[TemplateFieldSpec]
+    lifecycle: TemplateLifecycleSpec
+    allowed_effects: list[str]
+    status: str  # active / frozen / retired
+    approved_by: str
+    approved_at_tick: int
+```
+
+3. `TemplateInstance`
+
+```python
+@dataclass(slots=True)
+class TemplateInstance:
+    instance_id: str
+    template_id: str
+    template_version: int
+    scope_ref: str
+    field_values: dict[str, str | int | float | bool | list[str]]
+    linked_refs: list[str]
+    pressure_score: float
+    status: str  # active / cooling / archived
+    created_at_tick: int
+    updated_at_tick: int
+```
+
+五、阶段任务顺序
+
+| 顺序 | 批次 | 任务 | 目标 | 验收 |
+|---:|---|---|---|---|
+| 1 | V5-A | 半开放结构边界设计 | 明确 AI 可提议内容、禁止内容、审批流程 | 输出边界文档和 validator 草案 |
+| 2 | V5-B | `StructureTemplateProposal` 数据层 | 建立模板提案对象和序列化 | 单元测试覆盖 proposal save/load |
+| 3 | V5-C | 模板 validator | 校验字段类型、字段数量、生命周期、影响通道、命名冲突 | 非法模板被拒绝并产生 audit |
+| 4 | V5-D | 审批队列 | proposal 进入 pending / approved / rejected / frozen 状态 | CLI 可查看、批准、拒绝模板 |
+| 5 | V5-E | approved template registry | 只有 approved template 可以被实例化 | registry save/load 与查询通过 |
+| 6 | V5-F | AI 基于模板生成实例 | AI 不再直接创造任意 schema，只填充 approved template 实例 | 实例通过 validator 并进入观察层 |
+| 7 | V5-G | 模板版本、迁移和回滚 | 支持模板冻结、退休、版本升级 | 旧实例仍可读取，新实例使用新版本 |
+| 8 | V5-H | 长跑污染防护验收 | 验证模板数量、实例数量、审计数量长期可控 | 100-300 tick 抽样稳定，全量测试通过 |
+
+六、必须禁止的能力
+
+| 禁止项 | 原因 |
+|---|---|
+| AI 直接新增 Python dataclass | 会绕过代码审查和测试 |
+| AI 直接新增 WorldState 字段 | 会破坏快照兼容和迁移边界 |
+| AI 直接修改固定对象字段 | 会污染第一、第二阶段固定模型 |
+| AI 自由定义无限字段 | 会导致 summary、查询、存档不可控 |
+| AI 绕过 approval 自动启用模板 | 会让 schema 质量不可控 |
+| AI 生成不可解释影响 | 所有影响必须走 Event / Relation / PressureThread |
+
+七、与第四阶段的关系
+
+| 第四阶段产物 | 第五阶段用途 |
+|---|---|
+| `WorldStyleProfile` | 限定模板题材边界，避免 AI 生成与世界风格冲突的结构 |
+| `NarrativeLexicon` | 提供模板标题、字段展示名、player/truth 表达规则 |
+| 风格硬编码清单 | 避免新模板继续把题材词散落到代码 |
+| 默认 profile 回归测试 | 保证新模板不会稀释当前“现实未来异常文明”默认风格 |
+
+八、与 SQLite 的关系
+
+| 方向 | 建议 |
+|---|---|
+| JSON 快照 | 继续作为权威存档 |
+| SQLite | 用作查询、审计分析、长跑统计，不作为第五阶段主 schema 来源 |
+| 模板 registry | 可导出到 SQLite，但权威状态仍由 WorldState / 快照管理 |
+| 查询字段 | 只允许有限索引字段，避免每个模板生成独立数据库表 |
+
+九、完成标志
+
+第五阶段完成时，应满足：
+
+| 验收项 | 标准 |
+|---|---|
+| AI 可提议新结构模板 | proposal 可生成、可校验、可审计 |
+| 人类/规则可审批模板 | pending / approved / rejected / frozen 状态清楚 |
+| approved template 可实例化 | 实例进入观察层、审计层、生命周期层 |
+| 固定结构不被污染 | 固定对象字段没有被 AI 直接改写 |
+| 长跑稳定 | 模板与实例数量可控，重复与噪声可压制 |
+| 可回滚 | 模板可冻结或退休，旧实例仍可读取 |
+
+十、结论
+
+第五阶段应承接用户提出的“更自由的生成结构”方向，但必须保持结构自由度和系统可控性之间的边界。
+
+推荐路线是：
+
+```text
+受控 DynamicStructure
+-> EmergentPresence
+-> 风格与题材边界集中管理
+-> AI 提议 StructureTemplate
+-> validator / approval / registry
+-> approved template 实例化
+```
+
+这样可以让 AI 逐步参与世界结构扩展，而不是一次性把 schema 控制权交给 AI。

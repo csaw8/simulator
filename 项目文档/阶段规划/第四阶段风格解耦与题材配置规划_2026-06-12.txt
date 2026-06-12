@@ -150,3 +150,22 @@ class NarrativeLexicon:
 ```
 
 第三阶段的准备任务只需要把债务记录清楚，并在 V3-H/V3-I 新增结构时避免继续扩大硬编码范围。
+
+十、第五阶段衔接：半开放结构生成
+
+| 项 | 内容 |
+|---|---|
+| 第五阶段方向 | 半开放结构生成与 AI 模板提案 |
+| 第四阶段提供的基础 | `WorldStyleProfile`、`NarrativeLexicon`、题材词表、禁用词、输出风格边界 |
+| 第四阶段不做 | 不让 AI 自由新增 schema，不做 template approval registry，不做半开放模板实例化 |
+| 第五阶段再做 | `StructureTemplateProposal`、模板 validator、审批队列、approved template registry、模板实例化 |
+| 详细文档 | `项目文档/阶段规划/第五阶段半开放结构生成规划_2026-06-12.txt` |
+
+也就是说，第四阶段负责告诉 AI “这个世界允许什么风格和题材边界”，第五阶段才允许 AI 在这些边界内提出新的结构模板。
+
+推荐依赖关系：
+
+```text
+第四阶段：风格边界集中管理
+第五阶段：在风格边界内做半开放结构模板生成
+```

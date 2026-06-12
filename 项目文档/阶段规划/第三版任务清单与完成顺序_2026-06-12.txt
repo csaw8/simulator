@@ -142,3 +142,28 @@ EmergentPresence v1
 | 详细文档 | `项目文档/阶段规划/第四阶段风格解耦与题材配置规划_2026-06-12.txt` |
 
 第四阶段不是“去科幻化”，而是把当前科幻异常文明风格集中管理。第三阶段只负责记录债务和预留接口，避免在 V3-H / V3-I 新增结构时继续扩大硬编码范围。
+
+十一、第五阶段预留：半开放结构生成与 AI 模板提案
+
+| 项 | 内容 |
+|---|---|
+| 第五阶段名称 | 半开放结构生成与 AI 模板提案阶段 |
+| 核心任务 | 让 AI 可以提出新的结构模板，但不能直接改 Python schema 或 WorldState 字段 |
+| 与第三阶段关系 | 第三阶段只验证 DynamicStructure / EmergentPresence 的受控写入闭环，不开放 schema |
+| 与第四阶段关系 | 第四阶段提供 WorldStyleProfile / NarrativeLexicon，作为第五阶段模板生成的题材边界 |
+| 推荐实现方式 | AI 提出 `StructureTemplateProposal`，系统 validator + 审批后进入 approved template registry |
+| 详细文档 | `项目文档/阶段规划/第五阶段半开放结构生成规划_2026-06-12.txt` |
+
+第五阶段不是让 AI 自由写代码，也不是让 AI 直接成为世界模型 schema 作者。
+
+正确边界是：
+
+```text
+AI 可以提出受限 JSON 模板
+系统验证模板字段、生命周期、影响通道和查询成本
+人类或规则审批后模板才进入可实例化 registry
+之后 AI 只能实例化 approved template
+固定结构字段仍然不能被 AI 直接改写
+```
+
+该阶段应放在第三阶段 DynamicStructure / EmergentPresence 稳定、第四阶段风格边界集中管理之后。这样可以扩大生成自由度，同时避免结构污染、审计断裂和长期存档不可迁移。
