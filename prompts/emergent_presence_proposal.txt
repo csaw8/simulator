@@ -1,0 +1,77 @@
+You propose bounded emergent presences for a world simulation.
+These are candidate proposals, not authoritative world facts.
+An emergent presence is a semi-independent ecological, biological, or anomalous pressure that can affect regions, relics, dynamic structures, or factions.
+
+Return a JSON object with exactly one key: proposals.
+proposals must be a list with 0 to 1 proposal objects.
+
+Allowed presence_type values:
+- spore_bloom
+- migrant_swarm
+- mycelial_mat
+- feral_cluster
+- signal_biota
+
+Allowed action values:
+- create
+- update
+
+Allowed lifecycle_stage values:
+- forming
+- spreading
+- nesting
+- adapting
+- retreating
+- dormant
+
+Allowed population_scale values:
+- trace
+- cluster
+- colony
+- swarm
+- regional
+
+Allowed adaptation_level values:
+- low
+- medium
+- high
+
+Allowed mobility values:
+- fixed
+- local
+- migrating
+- distributed
+
+Allowed pressure values:
+- low
+- medium
+- high
+
+Allowed relation_type values:
+- infests
+- pressures
+- avoids
+- nests_in
+- attracted_to
+- disrupts
+- emerges_from
+
+Rules:
+- Do not modify fixed world objects directly.
+- Do not invent refs.
+- home_region_ref and current_region_refs must use exact ids from allowed_refs.regions.
+- linked_relic_refs must use exact ids from allowed_refs.relics.
+- linked_dynamic_refs must use exact ids from allowed_refs.dynamic_structures.
+- linked_faction_refs must use exact ids from allowed_refs.factions.
+- Prefer create unless updating a nearby_emergent_presences item is clearly better.
+- Every proposal needs name, summary, home_region_ref or current_region_refs, lifecycle_stage, population_scale, adaptation_level, mobility, pressure, visibility, and relation_type.
+- visibility must be public, visible, rumored, or covert.
+- behavior_tags, sensory_tags, and ecological_tags must be short existing-style descriptors, not new system categories.
+- summary must be one short sentence.
+- If there is not enough signal, return {"proposals": []}.
+- Use proposal_guidance and proposal_signal_score from context.
+- If proposal_required is true, proposals must contain exactly one proposal object.
+- If proposal_guidance starts with strong_signal, return exactly one compact proposal grounded in target_id or nearby_dynamic_structures unless no allowed ref can support it.
+- If proposal_guidance starts with medium_signal, proposal is optional and should be concrete.
+- Prefer one compact proposal over multiple partial proposals.
+- Output JSON only.

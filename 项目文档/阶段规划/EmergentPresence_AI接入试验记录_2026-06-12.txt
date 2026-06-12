@@ -1,0 +1,64 @@
+EmergentPresence AI 接入试验记录
+日期：2026-06-12
+
+目标
+- 给 EmergentPresence 增加受控 AI proposal dry-run/apply 链路。
+- 保持与 DynamicStructure 并列：context -> prompt -> AI adapter -> validation -> audit -> optional apply。
+- 不允许 AI 直接修改固定对象字段，不新增重系统，不自动每 tick 调用。
+
+已实现内容
+- 新增 src/core/emergent_presence_ai.py。
+  - propose_emergent_presences_for_watch(...)
+  - format_emergent_presence_ai_result(...)
+  - audit.proposal_type = emergent_presence
+- 扩展 src/core/ai_context.py。
+  - build_emergent_presence_context(...)
+  - emergent_presence_context_signal(...)
+  - allowed_refs 按 regions/relics/dynamic_structures/factions/emergent_presences 分组。
+- 新增 prompts/emergent_presence_proposal.txt。
+  - 限定 0-1 条 proposals。
+  - 限定 presence_type 白名单。
+  - 限定 refs 只能来自 allowed_refs。
+- 扩展 src/interfaces/commands.py。
+  - watch ... propose=emergent
+  - watch ... apply=emergent
+  - 可与 dynamic proposal 机制并列。
+- 扩展 AI 配置。
+  - emergent_presence_cost_tier: medium
+
+关键约束
+- AI 输出只接受 JSON object，根键 proposals。
+- AI dry-run 只走 validate_emergent_presence_proposals，不改 world.emergent_presences。
+- AI apply 只走 apply_emergent_presence_proposals，由既有 validator 和 apply 层落库。
+- apply 后仍由既有层生成 Event / Relation / PressureThread。
+- 每次成功、拒绝、无 client、策略阻断、错误均写入 WorldState.ai_proposal_audits。
+
+新增命令
+- watch region region_01 full truth propose=emergent
+- watch region region_01 full truth apply=emergent
+- audit proposals 10
+- audit proposals summary 40
+
+验证结果
+- python -m unittest tests.test_emergent_presence_ai tests.test_emergent_presences tests.test_dynamic_structure_ai
+  - 21 tests OK
+- python -m unittest discover -s tests
+  - 108 tests OK
+- python -m compileall src tests
+  - 通过
+- CLI smoke：
+  - watch region <region_id> full truth propose=emergent
+  - provider=none 时正确返回 SiliconFlow client unavailable
+  - 正确写入 audit_00001
+  - 未写入 emergent_presences
+
+Live API 试验
+- 当前会话可读取 SILICONFLOW_API_KEY。
+- 执行 live dry-run 时外部请求阶段超过命令时限。
+- 未执行 apply，未保存 live 生成结果。
+- 本地链路、fake client 链路、CLI 分支、audit 保存均已验证。
+
+当前结论
+- EmergentPresence AI proposal 结构已接入。
+- 代码侧闭环已完成，可通过 fake client 稳定复现。
+- live API 需要后续单独排查 SiliconFlow 请求耗时、模型响应时延或网络稳定性。

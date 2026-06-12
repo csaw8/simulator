@@ -21,6 +21,10 @@ from src.core.emergent_presence_proposals import (
     apply_emergent_presence_proposals,
     validate_emergent_presence_proposals,
 )
+from src.core.emergent_presence_ai import (
+    format_emergent_presence_ai_result,
+    propose_emergent_presences_for_watch,
+)
 from src.events.query import select_events
 from src.events.taxonomy import event_matches_focus
 from src.interfaces.stream_view import (
@@ -93,7 +97,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch supply <id> [brief|full] [player|truth] [focus=theme]     Observe a supply line\n"
             "  watch dynamic <id> [brief|full] [player|truth] [focus=theme]    Observe a dynamic structure\n"
             "  watch emergent <id> [brief|full] [player|truth] [focus=theme]   Observe an emergent presence\n"
-            "  Add propose=dynamic for dry-run dynamic proposals, or apply=dynamic to write accepted proposals\n"
+            "  Add propose=dynamic or propose=emergent for dry-run proposals; use apply=dynamic or apply=emergent to write accepted proposals\n"
             "  propose emergent <region_id> [apply]  Create a bounded local emergent-presence sample\n"
             "  targets dynamic [n]     Show high-signal targets for dynamic proposal sampling\n"
             "  audit proposals [n]      Show recent AI proposal audit records\n"
@@ -472,11 +476,12 @@ def _parse_watch_mode(raw_mode: str) -> str:
     return "full" if mode == "full" else "brief"
 
 
-def _parse_watch_options(parts: list[str]) -> tuple[str, str, str | None, str | None]:
+def _parse_watch_options(parts: list[str]) -> tuple[str, str, str | None, str | None, str | None]:
     mode = "brief"
     view = TRUTH_VIEW
     focus: str | None = None
     dynamic_proposal_mode: str | None = None
+    emergent_proposal_mode: str | None = None
     for token in parts[3:]:
         lowered = token.strip().lower()
         if lowered in {"brief", "full"}:
@@ -489,7 +494,11 @@ def _parse_watch_options(parts: list[str]) -> tuple[str, str, str | None, str | 
             dynamic_proposal_mode = "dry-run"
         elif lowered == "apply=dynamic":
             dynamic_proposal_mode = "apply"
-    return mode, view, focus, dynamic_proposal_mode
+        elif lowered == "propose=emergent":
+            emergent_proposal_mode = "dry-run"
+        elif lowered == "apply=emergent":
+            emergent_proposal_mode = "apply"
+    return mode, view, focus, dynamic_proposal_mode, emergent_proposal_mode
 
 
 def _handle_step(context: CommandContext, parts: list[str]) -> str:
@@ -548,7 +557,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
 
     target_type = parts[1].lower()
     target_id = parts[2]
-    mode, view, focus, dynamic_proposal_mode = _parse_watch_options(parts)
+    mode, view, focus, dynamic_proposal_mode, emergent_proposal_mode = _parse_watch_options(parts)
     event_limit = 8 if mode == "full" else 5
     ai_config = context.ai_config.to_dict()
     skip_ai_observation = focus is not None
@@ -592,6 +601,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type == "character":
@@ -636,6 +646,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type == "civ":
@@ -677,6 +688,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type == "relic":
@@ -718,6 +730,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type == "project":
@@ -738,6 +751,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type == "node":
@@ -758,6 +772,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type == "faction":
@@ -799,6 +814,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type == "supply":
@@ -819,6 +835,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type in {"dynamic", "structure"}:
@@ -839,6 +856,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     if target_type in {"emergent", "emergent_presence"}:
@@ -859,6 +877,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             mode=mode,
             view=view,
             dynamic_proposal_mode=dynamic_proposal_mode,
+            emergent_proposal_mode=emergent_proposal_mode,
         )
 
     return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', 'supply', 'dynamic', or 'emergent'."
@@ -873,21 +892,38 @@ def _append_dynamic_structure_proposal_if_requested(
     mode: str,
     view: str,
     dynamic_proposal_mode: str | None,
+    emergent_proposal_mode: str | None,
 ) -> str:
-    if dynamic_proposal_mode is None:
+    if dynamic_proposal_mode is None and emergent_proposal_mode is None:
         return output
-    result = propose_dynamic_structures_for_watch(
-        context.engine.world,
-        target_type=target_type,
-        target_id=target_id,
-        ai_config=context.ai_config.to_dict(),
-        mode=mode,
-        view=view,
-        apply=dynamic_proposal_mode == "apply",
-    )
-    if dynamic_proposal_mode == "apply" and result.validation.accepted:
-        save_world_state(context.engine.world, context.snapshot_path)
-    return output + "\n" + format_dynamic_structure_ai_result(result)
+    blocks = [output]
+    if dynamic_proposal_mode is not None:
+        dynamic_result = propose_dynamic_structures_for_watch(
+            context.engine.world,
+            target_type=target_type,
+            target_id=target_id,
+            ai_config=context.ai_config.to_dict(),
+            mode=mode,
+            view=view,
+            apply=dynamic_proposal_mode == "apply",
+        )
+        if dynamic_proposal_mode == "apply" and dynamic_result.validation.accepted:
+            save_world_state(context.engine.world, context.snapshot_path)
+        blocks.append(format_dynamic_structure_ai_result(dynamic_result))
+    if emergent_proposal_mode is not None:
+        emergent_result = propose_emergent_presences_for_watch(
+            context.engine.world,
+            target_type=target_type,
+            target_id=target_id,
+            ai_config=context.ai_config.to_dict(),
+            mode=mode,
+            view=view,
+            apply=emergent_proposal_mode == "apply",
+        )
+        if emergent_proposal_mode == "apply" and emergent_result.validation.accepted:
+            save_world_state(context.engine.world, context.snapshot_path)
+        blocks.append(format_emergent_presence_ai_result(emergent_result))
+    return "\n".join(blocks)
 
 
 def _handle_debug(context: CommandContext, parts: list[str]) -> str:
