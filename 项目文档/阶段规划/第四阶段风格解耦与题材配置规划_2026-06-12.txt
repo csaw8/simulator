@@ -1,0 +1,152 @@
+Terrarium Project 第四阶段风格解耦与题材配置规划
+
+日期：2026-06-12
+
+一、阶段定位
+
+| 项 | 内容 |
+|---|---|
+| 阶段 | 第四阶段 |
+| 名称 | 风格解耦与题材配置阶段 |
+| 核心目标 | 将当前硬编码的“现实未来科技 + 异常存在”文风集中管理，形成可配置的世界风格层 |
+| 是否改变当前默认题材 | 否 |
+| 是否把项目改成通用模拟器 | 否，先做可配置能力，不牺牲当前风格质量 |
+
+当前项目已经形成明确题材：
+
+```text
+现实未来科技文明
+异常存在
+巨构工程
+组织压力
+供应与封控
+AI 动态结构
+半独立涌现存在
+```
+
+这不是问题。问题在于风格词汇、prompt、observer voice、summary 标签散落在代码和文档里。第四阶段的目标不是去掉科幻味，而是把题材与文风集中管理，避免后续改题材时全项目搜索替换。
+
+二、当前硬耦合来源
+
+| 来源 | 示例 | 耦合程度 |
+|---|---|---:|
+| intent prompt | `World style: realistic future technology civilization.` | 高 |
+| observer voice | megastructure / non-human anomaly / security apparatus | 高 |
+| summary 文案 | 异常观察、项目观察、补给线观察、动态线索观察 | 高 |
+| event taxonomy | anomaly / project / supply / security / organization | 中高 |
+| presence/relic 语义 | relic / megastructure / sealed_archive / founding_protocol | 高 |
+| 规则事件模板 | archive / protocol / lifeform / migration / containment | 高 |
+
+三、第四阶段目标
+
+| 目标 | 验收标准 |
+|---|---|
+| 风格配置集中化 | prompt 中的世界风格、observer voice、常用标签不再散落硬编码 |
+| 当前题材保持默认 | `realistic_future_anomaly` 作为默认 profile |
+| 文风不被泛化稀释 | 默认输出仍保持现有“未来文明异常压力”质感 |
+| player/truth 术语可配置 | 标题、观察块标签、禁用词、偏好词进入 lexicon |
+| 多题材预留 | 后续可新增 fantasy / modern / post-collapse profile，但第四阶段不强制实现多套完整题材 |
+
+四、推荐数据结构
+
+1. `WorldStyleProfile`
+
+```python
+@dataclass(slots=True)
+class WorldStyleProfile:
+    style_id: str
+    world_style: str
+    setting_summary: str
+    technology_level: str
+    anomaly_mode: str
+    institution_tone: str
+    default_observer_voice: str
+    preferred_terms: list[str]
+    forbidden_terms: list[str]
+```
+
+2. `NarrativeLexicon`
+
+```python
+@dataclass(slots=True)
+class NarrativeLexicon:
+    region_label: str
+    character_label: str
+    civilization_label: str
+    faction_label: str
+    presence_label: str
+    project_label: str
+    supply_label: str
+    dynamic_structure_label: str
+    emergent_presence_label: str
+```
+
+当前默认 profile：
+
+| 字段 | 值 |
+|---|---|
+| `style_id` | `realistic_future_anomaly` |
+| `world_style` | `realistic future technology civilization` |
+| `setting_summary` | `future civilizations under infrastructural, organizational, and anomalous pressure` |
+| `technology_level` | `near_to_far_future` |
+| `anomaly_mode` | `exceptional_presence` |
+| `institution_tone` | `bureaucratic, infrastructural, security-conscious` |
+
+五、第四阶段完成顺序
+
+| 顺序 | 批次 | 任务 | 目标 | 验收 |
+|---:|---|---|---|---|
+| 1 | V4-A | 风格硬编码盘点 | 列出 prompt / observer / summary / taxonomy 中的硬耦合点 | 输出清单文档 |
+| 2 | V4-B | `WorldStyleProfile` 数据层 | 建立默认 profile，不改变现有输出 | 测试默认 profile 可读取 |
+| 3 | V4-C | prompt 风格配置化 | intent / observer prompt 使用 profile | 原有 AI prompt 测试通过 |
+| 4 | V4-D | observer voice 配置化 | observer voice 从 profile/lexicon 读取 | 默认输出语义不退化 |
+| 5 | V4-E | summary 标题与标签 lexicon 化 | 观察标题、块名进入 `NarrativeLexicon` | player 防泄漏测试通过 |
+| 6 | V4-F | 风格回归测试 | 保证默认 profile 下输出保持当前题材 | 全量测试通过 |
+| 7 | V4-G | 可选第二 profile 试点 | 只做一个小型非默认 profile 验证接口 | 不要求完整多题材支持 |
+
+六、第三阶段准备任务
+
+第三阶段只做准备，不做大规模解耦。
+
+| 准备项 | 内容 |
+|---|---|
+| 硬编码盘点 | 记录 `World style`、observer voice、summary 标签等位置 |
+| 命名边界 | 区分“当前题材默认词”和“系统通用词” |
+| EmergentPresence 设计兼容 | V3-H/V3-I 不把新实体名称写死成只能服务当前题材的词 |
+| SQLite 设计兼容 | SQLite schema 不写死某一题材，仅记录通用字段 |
+| 不做代码大改 | 不在 V3-H/V3-I 前拆 prompt 和 summary |
+
+七、不做事项
+
+| 不做 | 原因 |
+|---|---|
+| 不在第三阶段重写文风系统 | 会打断 EmergentPresence 主线 |
+| 不马上支持多题材完整切换 | 需求未明确，成本高 |
+| 不抽象 event taxonomy | taxonomy 参与规则判断，过早抽象风险高 |
+| 不把当前科幻风格削弱成通用模板 | 当前风格是项目辨识度，不是错误 |
+| 不做大型 i18n 系统 | 当前只是题材/文风配置，不是多语言产品 |
+
+八、与第三阶段关系
+
+| 第三阶段任务 | 与第四阶段关系 |
+|---|---|
+| V3-H 半独立实体设计 | 注意术语不要继续散落硬编码 |
+| V3-I EmergentPresence v1 | 保持默认科幻异常风格，但把明显可配置点记录下来 |
+| V3-J SQLite 导出器 | schema 用通用字段，不依赖题材词 |
+| V3-K SQLite ledger | 审计字段通用化 |
+| V3-L 风格解耦准备 | 输出硬编码盘点和第四阶段接口建议 |
+
+九、结论
+
+第四阶段应处理风格与题材解耦，但不要把它理解为“去科幻化”。
+
+正确目标是：
+
+```text
+保留当前默认科幻异常文明风格
+集中管理题材词汇和 prompt 风格
+为未来可换题材预留接口
+不牺牲当前输出质量
+```
+
+第三阶段的准备任务只需要把债务记录清楚，并在 V3-H/V3-I 新增结构时避免继续扩大硬编码范围。

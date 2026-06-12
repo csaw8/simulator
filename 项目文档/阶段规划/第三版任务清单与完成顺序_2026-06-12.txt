@@ -63,6 +63,7 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 9 | V3-I | EmergentPresence v1 | 新生命/异常生态第一版 | 独立数据层、proposal、validator、summary、snapshot、测试 |
 | 10 | V3-J | SQLite 导出器与基础查询 | 为长期事件、关系、审计和动态结构提供查询层 | 不替代 JSON 快照，可导出 events / relations / dynamic_structures / audits |
 | 11 | V3-K | SQLite 增量 ledger 与审计分析 | 为长跑和 AI proposal 质量分析提供持久记录 | 支持 db stats / db audits / db dynamics 等查询 |
+| 12 | V3-L | 风格解耦准备 | 为第四阶段 WorldStyleProfile / NarrativeLexicon 做盘点和边界设计 | 输出硬编码清单、默认题材词表、第四阶段接口建议 |
 
 五、近期最小执行清单
 
@@ -86,6 +87,7 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 直接做新生命存在固定结构 | DynamicStructure 还未进入稳定世界循环 |
 | 批量 `apply=dynamic` | 当前 live 样本还少，应先小规模抽样 |
 | 立刻用 SQLite 替代 JSON 快照 | 当前世界模型仍在快速变化，过早数据库化会增加迁移成本 |
+| 在第三阶段全面解耦科幻文风 | 会打断 EmergentPresence 主线，且容易稀释当前项目辨识度 |
 
 七、何时适合扩展“新的生命存在形式”
 
@@ -127,3 +129,16 @@ EmergentPresence v1
 九、推荐下一条任务提示
 
 继续第三版 V3-A：做 `apply=dynamic` 安全抽样。只选择 1-2 个高信号 region，执行 live apply，验证是否生成 DynamicStructure / Event / Relation / PressureThread / Audit，并确认 player 输出不泄漏内部 ID。不要批量 apply，不要新增固定结构。
+
+十、第四阶段预留：风格解耦与题材配置
+
+| 项 | 内容 |
+|---|---|
+| 第四阶段名称 | 风格解耦与题材配置阶段 |
+| 核心任务 | 建立 `WorldStyleProfile` 与 `NarrativeLexicon` |
+| 默认风格 | `realistic_future_anomaly`，继续保留现实未来科技 + 异常存在风格 |
+| 第三阶段准备任务 | V3-L：硬编码盘点、默认题材词表、接口建议 |
+| 第三阶段不做 | 不全面重写 prompt、observer voice、summary 文案 |
+| 详细文档 | `项目文档/阶段规划/第四阶段风格解耦与题材配置规划_2026-06-12.txt` |
+
+第四阶段不是“去科幻化”，而是把当前科幻异常文明风格集中管理。第三阶段只负责记录债务和预留接口，避免在 V3-H / V3-I 新增结构时继续扩大硬编码范围。
