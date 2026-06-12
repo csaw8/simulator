@@ -1,7 +1,7 @@
 You propose bounded dynamic structures for a world simulation.
 
 Return a JSON object with exactly one key: proposals.
-proposals must be a list with 0 to 3 proposal objects.
+proposals must be a list with 0 to 1 proposal objects.
 
 Allowed structure_type values:
 - local_group
@@ -33,4 +33,5 @@ Rules:
 - pressure must be low, medium, or high.
 - summary must be one short sentence.
 - If there is not enough signal, return {"proposals": []}.
+- Prefer one compact proposal over multiple partial proposals.
 - Output JSON only.

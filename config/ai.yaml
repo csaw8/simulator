@@ -11,7 +11,7 @@ ai:
   observer_thinking_budget: 16
   observer_full_max_tokens: 320
   observer_full_thinking_budget: 24
-  dynamic_structure_cost_tier: low
+  dynamic_structure_cost_tier: medium
   protagonist_budget_per_week: 1
   active_character_budget_per_week: 0
   chronicler_budget_per_week: 2

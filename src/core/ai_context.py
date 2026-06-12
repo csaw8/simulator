@@ -13,7 +13,7 @@ def build_dynamic_structure_context(
     *,
     target_type: str,
     target_id: str,
-    event_limit: int = 8,
+    event_limit: int = 6,
 ) -> dict[str, object]:
     """Build a bounded context for dynamic-structure proposals."""
     if not _target_exists(world, target_id):
@@ -68,11 +68,17 @@ def build_dynamic_structure_context(
         "target_id": target_id,
         "target_label": format_entity_ref(world, target_id),
         "world_frame": world.structure_template.brief_signature(),
-        "allowed_refs": _allowed_refs(world),
         "recent_events": recent_events,
         "pressure_threads": pressure_threads,
         "relations": relations,
         "nearby_dynamic_structures": nearby_dynamic,
+        "allowed_refs": _allowed_refs_for_context(
+            world,
+            target_id=target_id,
+            recent_events=recent_events,
+            relations=relations,
+            nearby_dynamic=nearby_dynamic,
+        ),
     }
 
 
@@ -120,6 +126,49 @@ def _allowed_refs(world: WorldState) -> list[str]:
     ):
         refs.extend(collection.keys())
     return sorted(refs)
+
+
+def _allowed_refs_for_context(
+    world: WorldState,
+    *,
+    target_id: str,
+    recent_events: list[dict[str, object]],
+    relations: list[dict[str, object]],
+    nearby_dynamic: list[dict[str, object]],
+) -> list[str]:
+    refs = [target_id]
+    for event in recent_events:
+        for ref in event.get("refs", []):
+            if isinstance(ref, str) and ref not in refs:
+                refs.append(ref)
+    for relation in relations:
+        for key in ("source_ref", "target_ref"):
+            ref = relation.get(key)
+            if isinstance(ref, str) and ref not in refs:
+                refs.append(ref)
+    for structure in nearby_dynamic:
+        for ref in structure.get("scope_refs", []) + structure.get("linked_refs", []):
+            if isinstance(ref, str) and ref not in refs:
+                refs.append(ref)
+        structure_id = structure.get("structure_id")
+        if isinstance(structure_id, str) and structure_id not in refs:
+            refs.append(structure_id)
+
+    # Keep a small fallback pool so AI can still attach proposals when the target has few events.
+    fallback_refs = (
+        list(world.regions)[:4]
+        + list(world.factions)[:6]
+        + list(world.relics)[:4]
+        + list(world.projects)[:3]
+        + list(world.supply_lines)[:3]
+        + list(world.region_nodes)[:4]
+    )
+    for ref in fallback_refs:
+        if ref not in refs:
+            refs.append(ref)
+        if len(refs) >= 32:
+            break
+    return refs[:32]
 
 
 def _target_exists(world: WorldState, target_id: str) -> bool:

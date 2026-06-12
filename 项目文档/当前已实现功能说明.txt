@@ -47,6 +47,7 @@ Terrarium Project 当前已实现功能说明
 | 输出追踪 | `propose=dynamic/apply=dynamic` 输出 `audit_id` |
 | 快照 | `ai_proposal_audits` 已接入 save/load |
 | 限流 | 审计记录最多保留最近 80 条 |
+| 真实联网测试 | 2026-06-12 已完成第一轮 live 抽样，详见 `项目文档/AI真实联网测试记录_2026-06-12.txt` |
 
 一、项目定位
 

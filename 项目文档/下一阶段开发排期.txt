@@ -31,8 +31,8 @@ Terrarium Project 开发周期与当前排期
 | AI 动态结构 proposal apply | 已完成 |
 | AI proposal 审计日志 | 已完成 |
 | proposal 质量指标 | 已完成：`audit proposals summary [n]` |
-| 真实联网质量评估 | 待 `SILICONFLOW_API_KEY` 可用后执行 |
-| 下一优先任务 | 配置真实 API key 后做 dry-run 抽样；随后做上下文压缩 |
+| 真实联网质量评估 | 已完成第一轮，dynamic proposal 截断问题已修复 |
+| 下一优先任务 | 收集更多 `propose=dynamic` audit 样本；随后做目标选择策略 |
 
 
 一、当前进度总览

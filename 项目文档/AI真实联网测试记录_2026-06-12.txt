@@ -1,0 +1,57 @@
+Terrarium Project AI 真实联网测试记录
+
+日期：2026-06-12
+
+一、结论
+
+| 项 | 结果 |
+|---|---|
+| API key | 已检测到 Windows User 环境变量 `SILICONFLOW_API_KEY` |
+| 最小 JSON 调用 | 成功 |
+| intent live 调用 | 成功，source=`siliconflow` |
+| chronicle live 调用 | 成功，source=`siliconflow` |
+| observer live 调用 | region / character / civilization / faction / relic 均成功 |
+| dynamic proposal dry-run | 初次发现 token 截断问题，修复后成功 |
+| dynamic proposal apply | live 调用成功，但样本返回空 proposals，未落库 |
+
+二、重要发现
+
+| 问题 | 处理 |
+|---|---|
+| 之前自动测试主要是本地 fake/fallback/validator 测试 | 已确认，不等于真实 API 质量测试 |
+| dynamic proposal 初次 live 调用 JSON 被截断 | 已压缩 `allowed_refs`，prompt 改为最多 1 条 proposal，默认 tier 从 low 调整为 medium |
+| observer character 曾出现一次极短输出 | 复测 brief/full 输出正常 |
+
+三、live 抽样结果
+
+| 功能 | 结果 |
+|---|---|
+| 最小 API | `{'ok': True, 'text': 'pong'}` |
+| step intent | `source=siliconflow`, 示例 intent=`contain_relic_fallout -> region_05` |
+| chronicle | `source=siliconflow`, `tier=medium`, error=None |
+| observer region | 成功，返回中文观察文本 |
+| observer character | 成功，brief/full 复测正常 |
+| observer civilization | 成功，返回中文观察文本 |
+| observer faction | 成功，返回中文观察文本 |
+| observer relic | 成功，返回中文观察文本 |
+| dynamic proposal dry-run | 成功，validator accepted `proposal[0]`，未写入 world |
+| dynamic proposal apply | 模型返回 `{"proposals": []}`，因此未写入 world |
+
+四、当前状态
+
+| 项 | 状态 |
+|---|---|
+| 真实 API 连接 | 可用 |
+| 动态结构 proposal 解析 | 修复后可用 |
+| 动态结构 dry-run | 可用 |
+| 动态结构 apply | 通道可用，但仍需更多真实样本评估模型何时愿意返回 proposal |
+| 建议 | 先继续收集 5-10 条 `propose=dynamic` audit，再考虑稳定使用 `apply=dynamic` |
+
+五、下一步建议
+
+| 顺序 | 任务 |
+|---:|---|
+| 1 | 用真实 API 连续跑 5-10 条 `watch region <id> full truth propose=dynamic` |
+| 2 | 用 `audit proposals summary 20` 看 accepted/error/rejected 分布 |
+| 3 | 如果 proposal 合法率稳定，再小规模使用 `apply=dynamic` |
+| 4 | 后续可增加 `dynamic proposal` 的目标选择策略，让高信号对象更容易触发 proposal |
