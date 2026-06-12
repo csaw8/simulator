@@ -1,0 +1,266 @@
+Terrarium Project SQLite 持久化与查询层设计草案
+
+日期：2026-06-12
+
+一、结论
+
+| 项 | 判断 |
+|---|---|
+| 是否加入日程 | 是 |
+| 是否现在实现 | 否 |
+| 推荐阶段 | 第三版后置基础设施，建议排在 V3-H / V3-I 设计与第一版落地之后 |
+| 第一用途 | 事件、关系、审计、动态结构历史查询 |
+| 不建议用途 | 立刻替代当前 JSON 快照 |
+
+SQLite 不是为了“换技术栈”，而是为了解决后续世界运行时间变长之后的查询、审计、回放和分析问题。
+
+当前仍应保留：
+
+```text
+WorldState in memory
+JSON snapshot save/load
+CLI 文本观察
+unittest 回归测试
+```
+
+SQLite 初期应该作为旁路持久化与索引层，而不是主状态源。
+
+二、为什么需要 SQLite
+
+| 问题 | 当前 JSON 快照的局限 | SQLite 价值 |
+|---|---|---|
+| 长期事件越来越多 | 每次读取都要整体加载 | 可按 tick/type/ref 查询 |
+| AI proposal audit 增多 | 只能看最近内存记录 | 可长期保留、筛选、统计 |
+| relations 变复杂 | 难追踪历史变化 | 可记录关系变更时间线 |
+| DynamicStructure 生命周期增长 | archived 结构仍有历史价值 | 可查询创建、更新、归档轨迹 |
+| 后续 EmergentPresence 更复杂 | JSON 快照会越来越重 | 可拆分历史日志和当前状态 |
+| 调试 AI 污染风险 | 审计散落在快照里 | 可做稳定 audit ledger |
+
+三、设计原则
+
+| 原则 | 说明 |
+|---|---|
+| 旁路优先 | SQLite 初期只记录历史和索引，不作为唯一状态源 |
+| 不阻塞模拟 | SQLite 写入失败不应导致世界 step 崩溃，除非显式开启 strict 模式 |
+| 不提前服务化 | 不引入数据库服务，只使用本地 `.sqlite3` 文件 |
+| 不替代测试 | 现有 unittest 继续以内存和 JSON 快照为主 |
+| 不让 AI 直接写库 | AI 仍走 proposal -> validation -> audit -> apply |
+| Schema 保守 | 先记录事件与审计，不急着把所有世界对象关系化 |
+| 可重建 | SQLite 数据应能从 JSON 快照和事件流重建，至少早期如此 |
+
+四、推荐引入顺序
+
+| 顺序 | 批次 | 内容 | 说明 |
+|---:|---|---|---|
+| 1 | SQLite-0 | 设计文档 | 当前任务 |
+| 2 | SQLite-1 | 只读导出器 | 从当前 WorldState 导出 events / relations / dynamic_structures / audits 到 SQLite |
+| 3 | SQLite-2 | 查询命令 | 增加 `db export`、`db stats`、`db events ...` 一类 CLI |
+| 4 | SQLite-3 | 增量写入 ledger | step / apply 后追加记录，不替代 JSON save |
+| 5 | SQLite-4 | 审计和长跑分析 | 用 SQL 查询 proposal 成功率、结构增长、事件分布 |
+| 6 | SQLite-5 | 可选恢复辅助 | 从 SQLite 生成调试报告，不直接恢复主世界 |
+| 7 | SQLite-6 | 是否升级为主存储评估 | 只有 JSON 快照明显撑不住时再考虑 |
+
+五、初版数据库文件位置
+
+| 项 | 建议 |
+|---|---|
+| 路径 | `runtime/terrarium.sqlite3` |
+| 是否纳入 Git | 否 |
+| Git 策略 | `.gitignore` 忽略 `runtime/*.sqlite3`、`runtime/*.sqlite`、`runtime/*.db` |
+| Schema 文件 | 可放在 `src/storage/sqlite_schema.py` 或 `src/storage/sqlite_store.py` |
+| 测试数据库 | 使用 tempfile 临时文件 |
+
+六、初版表设计
+
+1. `events`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| event_id | TEXT PRIMARY KEY | 事件 ID |
+| tick | INTEGER | 世界 tick |
+| granularity | TEXT | 时间粒度 |
+| event_type | TEXT | 事件类型 |
+| event_scope | TEXT | 事件范围 |
+| title | TEXT | 标题 |
+| summary | TEXT | 摘要 |
+| severity | TEXT | 严重度 |
+| novelty | TEXT | 新颖度 |
+| consequence_score | TEXT | 后果强度 |
+| narrative_priority | TEXT | 叙事优先级 |
+| visibility | TEXT | 可见性 |
+
+2. `event_refs`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| event_id | TEXT | 事件 ID |
+| ref_type | TEXT | region / civ / faction / character / relic / project / supply / node / dynamic |
+| ref_id | TEXT | 对象 ID |
+
+建议索引：
+
+```sql
+CREATE INDEX idx_event_refs_ref ON event_refs(ref_type, ref_id, event_id);
+CREATE INDEX idx_events_tick ON events(tick);
+CREATE INDEX idx_events_type ON events(event_type);
+```
+
+3. `relations`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| relation_id | TEXT PRIMARY KEY | 关系 ID |
+| source_ref | TEXT | 来源对象 |
+| target_ref | TEXT | 目标对象 |
+| relation_type | TEXT | 关系类型 |
+| strength | TEXT | 强度 |
+| status | TEXT | active / inactive |
+| updated_tick | INTEGER | 最近更新时间 |
+| last_event_id | TEXT | 最近事件 |
+| notes | TEXT | 简短说明 |
+| tags_json | TEXT | JSON 编码 tags |
+
+4. `dynamic_structures`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| structure_id | TEXT PRIMARY KEY | 动态结构 ID |
+| structure_type | TEXT | 类型 |
+| name | TEXT | 名称 |
+| summary | TEXT | 摘要 |
+| origin | TEXT | 来源 |
+| status | TEXT | active / cooling / archived |
+| visibility | TEXT | 可见性 |
+| pressure | TEXT | 压力 |
+| created_tick | INTEGER | 创建 tick |
+| updated_tick | INTEGER | 更新 tick |
+| scope_refs_json | TEXT | JSON 编码 refs |
+| linked_refs_json | TEXT | JSON 编码 refs |
+| tags_json | TEXT | JSON 编码 tags |
+| source_event_refs_json | TEXT | JSON 编码事件 refs |
+| influence_refs_json | TEXT | JSON 编码影响 refs |
+
+5. `ai_proposal_audits`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| audit_id | TEXT PRIMARY KEY | 审计 ID |
+| tick | INTEGER | tick |
+| source | TEXT | siliconflow / none |
+| proposal_type | TEXT | dynamic_structure 等 |
+| target_type | TEXT | region / relic / ... |
+| target_id | TEXT | 目标 ID |
+| mode | TEXT | dry-run / apply |
+| applied | INTEGER | 0/1 |
+| accepted_refs_json | TEXT | JSON |
+| rejected_reasons_json | TEXT | JSON |
+| payload_json | TEXT | JSON |
+| error | TEXT | 错误 |
+| tier | TEXT | 成本层 |
+| signal_score | INTEGER | 信号分 |
+
+6. `snapshots`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| snapshot_id | TEXT PRIMARY KEY | 快照 ID |
+| tick | INTEGER | tick |
+| created_at | TEXT | 创建时间 |
+| summary_json | TEXT | world.summary() |
+| snapshot_path | TEXT | JSON 快照路径 |
+
+初期不建议把完整 WorldState 全部塞进 SQLite。
+
+七、CLI 设计
+
+| 命令 | 作用 | 阶段 |
+|---|---|---|
+| `db export` | 将当前 world 导出到 SQLite | SQLite-1 |
+| `db stats` | 查看事件数、关系数、动态结构数、audit 数 | SQLite-2 |
+| `db events <ref> [n]` | 按对象查事件 | SQLite-2 |
+| `db audits [n]` | 查 AI proposal audit | SQLite-2 |
+| `db dynamics [active|archived|all]` | 查动态结构 | SQLite-2 |
+| `db vacuum` | 清理数据库文件 | SQLite-4 |
+
+八、与现有 JSON 快照关系
+
+| 阶段 | JSON 快照 | SQLite |
+|---|---|---|
+| 当前 | 主存储 | 无 |
+| SQLite-1 | 主存储 | 手动导出 |
+| SQLite-2 | 主存储 | 查询加速与分析 |
+| SQLite-3 | 主存储 | 增量 ledger |
+| SQLite-6 以后 | 视情况保留或降级 | 评估是否成为主存储 |
+
+短期内不要把 SQLite 变成主存储。原因：
+
+| 风险 | 说明 |
+|---|---|
+| 迁移成本高 | 当前模型字段仍在变 |
+| Schema 过早固定 | 会限制第三版后半的 EmergentPresence 设计 |
+| 测试成本上升 | 所有状态变更都要同步数据库断言 |
+| 调试复杂度上升 | 内存、JSON、SQLite 三者一致性需要维护 |
+
+九、最小实现方案
+
+SQLite-1 最小实现只需要：
+
+| 文件 | 内容 |
+|---|---|
+| `src/storage/sqlite_store.py` | 创建 schema、导出 world、查询 stats |
+| `tests/test_sqlite_store.py` | tempfile 数据库导出测试 |
+| `src/interfaces/commands.py` | 增加 `db export` 和 `db stats` |
+
+最小验收：
+
+| 验收项 | 标准 |
+|---|---|
+| 导出 events | SQLite events 行数等于 world.event_stream.events |
+| 导出 event_refs | 能按 region/relic/dynamic 查到事件 |
+| 导出 dynamic_structures | 行数等于 world.dynamic_structures |
+| 导出 audits | 行数等于 world.ai_proposal_audits |
+| 不影响 JSON save/load | 原测试继续通过 |
+| 不提交数据库文件 | `runtime/*.sqlite3` 不进入 Git |
+
+十、与第三版后续任务关系
+
+| 任务 | 与 SQLite 的关系 |
+|---|---|
+| V3-H 半独立实体设计 | 先设计，不依赖 SQLite |
+| V3-I EmergentPresence v1 | 可先继续 JSON 快照 |
+| V3-J SQLite-1 导出器 | 建议在 V3-I 后做 |
+| V3-K SQLite 查询与审计分析 | 在 AI 结构变多后价值更高 |
+
+推荐第三版后续顺序：
+
+| 顺序 | 任务 |
+|---:|---|
+| 1 | V3-H：半独立实体设计 |
+| 2 | V3-I：EmergentPresence v1 |
+| 3 | V3-J：SQLite 导出器与基础查询 |
+| 4 | V3-K：SQLite 增量 ledger 与审计分析 |
+
+十一、当前不做事项
+
+| 不做 | 原因 |
+|---|---|
+| 不立刻替换 JSON 快照 | 当前主状态还在快速演化 |
+| 不上 PostgreSQL / MySQL | 本地模拟器没有服务端数据库需求 |
+| 不做 ORM | SQLAlchemy 等会引入额外复杂度，初期用 `sqlite3` 标准库即可 |
+| 不让 AI 直接写 SQLite | 仍必须经过 proposal validation |
+| 不把所有对象完全范式化 | 过早固定 schema 会拖慢后续结构扩展 |
+
+十二、结论
+
+SQLite 应加入日程，但它是第三版后置基础设施，不是当前最紧急的结构建设。
+
+推荐定位：
+
+```text
+短期：设计归档
+中期：只读导出 + 查询
+后期：增量 ledger + 审计分析
+很后期：评估是否替代 JSON 主快照
+```
+
+这条路线能获得 SQLite 的查询和审计优势，同时避免过早数据库化破坏当前 Python 世界模型的迭代速度。

@@ -61,6 +61,8 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 7 | V3-G | apply 后长跑验收 | 验证动态结构不会破坏固定世界循环 | 全量测试、compileall、30/100 tick 抽样通过 |
 | 8 | V3-H | 半独立实体设计 | 准备新生命存在形式等独立结构 | 输出 EmergentPresence v1 设计，不急于落库 |
 | 9 | V3-I | EmergentPresence v1 | 新生命/异常生态第一版 | 独立数据层、proposal、validator、summary、snapshot、测试 |
+| 10 | V3-J | SQLite 导出器与基础查询 | 为长期事件、关系、审计和动态结构提供查询层 | 不替代 JSON 快照，可导出 events / relations / dynamic_structures / audits |
+| 11 | V3-K | SQLite 增量 ledger 与审计分析 | 为长跑和 AI proposal 质量分析提供持久记录 | 支持 db stats / db audits / db dynamics 等查询 |
 
 五、近期最小执行清单
 
@@ -83,6 +85,7 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 自动每步调用 AI 生成结构 | 成本和噪声都会爆炸 |
 | 直接做新生命存在固定结构 | DynamicStructure 还未进入稳定世界循环 |
 | 批量 `apply=dynamic` | 当前 live 样本还少，应先小规模抽样 |
+| 立刻用 SQLite 替代 JSON 快照 | 当前世界模型仍在快速变化，过早数据库化会增加迁移成本 |
 
 七、何时适合扩展“新的生命存在形式”
 
