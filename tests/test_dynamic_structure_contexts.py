@@ -113,6 +113,7 @@ class DynamicStructureContextTests(unittest.TestCase):
         prompt = fake_client.messages[-1]["content"]
         self.assertIn("World style profile:", prompt)
         self.assertIn("realistic future technology civilization", prompt)
+        self.assertIn("Narrative voice: Use a grounded public-observer tone", prompt)
         self.assertIn("Related dynamic structures:", prompt)
         self.assertIn("Context Trace", prompt)
         self.assertIn("dyn_", prompt)

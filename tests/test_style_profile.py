@@ -8,6 +8,7 @@ from src.world.builder import build_world
 from src.world.style_profile import (
     DEFAULT_STYLE_PROFILE_ID,
     get_world_style_profile,
+    observer_voice,
     style_profile_prompt_lines,
     style_profile_to_dict,
 )
@@ -41,6 +42,17 @@ class WorldStyleProfileTests(unittest.TestCase):
         self.assertIn("World style: realistic future technology civilization.", text)
         self.assertIn("Setting summary:", text)
         self.assertIn("Forbidden terms:", text)
+
+    def test_observer_voice_comes_from_style_profile(self) -> None:
+        voice = observer_voice(DEFAULT_STYLE_PROFILE_ID, "region_public_pressure")
+
+        self.assertIn("grounded public-observer tone", voice)
+
+    def test_observer_voice_falls_back_to_default_voice(self) -> None:
+        profile = get_world_style_profile()
+        voice = observer_voice(DEFAULT_STYLE_PROFILE_ID, "missing_voice_key")
+
+        self.assertEqual(voice, profile.default_observer_voice)
 
     def test_world_state_uses_default_style_profile_id(self) -> None:
         world = build_world(DEFAULT_WORLD_CONFIG)

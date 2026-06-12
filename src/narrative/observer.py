@@ -14,7 +14,7 @@ from src.core.ai_tiers import resolve_observer_tier
 from src.narrative.visibility import is_player_view
 from src.world.presence import megastructure_origin_label, presence_class, presence_display_name
 from src.world.state import WorldState
-from src.world.style_profile import style_profile_prompt_lines
+from src.world.style_profile import observer_voice, style_profile_prompt_lines
 
 PROMPT_ROOT = Path("prompts")
 
@@ -150,7 +150,7 @@ def observe_character_with_ai(
         ],
         mode=mode,
         style_profile_id=world.style_profile_id,
-        voice_instruction=_character_observer_voice(character),
+        voice_instruction=_character_observer_voice(world, character),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
 
@@ -209,7 +209,7 @@ def observe_civilization_with_ai(
         ],
         mode=mode,
         style_profile_id=world.style_profile_id,
-        voice_instruction=_civilization_observer_voice(civilization),
+        voice_instruction=_civilization_observer_voice(world, civilization),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
 
@@ -281,7 +281,7 @@ def observe_relic_with_ai(
         ],
         mode=mode,
         style_profile_id=world.style_profile_id,
-        voice_instruction=_relic_observer_voice(relic),
+        voice_instruction=_relic_observer_voice(world, relic),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
 
@@ -350,7 +350,7 @@ def observe_faction_with_ai(
         ],
         mode=mode,
         style_profile_id=world.style_profile_id,
-        voice_instruction=_faction_observer_voice(faction),
+        voice_instruction=_faction_observer_voice(world, faction),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
 
@@ -521,41 +521,41 @@ def _region_observer_voice(world: WorldState, region_id: str) -> str:
     frame = getattr(world, "world_frame", None)
     lens = getattr(frame, "observer_lens", "macro_pressure_and_public_signals")
     if lens == "macro_pressure_and_public_signals":
-        return "Use a grounded public-observer tone, emphasizing atmosphere, pressure drift, and visible social signals."
-    return "Use a neutral regional observation tone, centered on texture and public-facing pressure."
+        return observer_voice(world.style_profile_id, "region_public_pressure")
+    return observer_voice(world.style_profile_id, "region_neutral")
 
 
-def _character_observer_voice(character: object) -> str:
+def _character_observer_voice(world: WorldState, character: object) -> str:
     agency_mode = getattr(character, "agency_mode", "reactive")
     if agency_mode == "strategic":
-        return "Write like a close but restrained profile of a planner under pressure, highlighting calculation, restraint, and directional intent."
+        return observer_voice(world.style_profile_id, "character_strategic")
     if agency_mode == "opportunistic":
-        return "Write like an observer noting someone who is alert to openings, with quick adjustments and unstable positioning."
-    return "Write like an observer tracking a pressured supporting figure, emphasizing reaction, adaptation, and local strain."
+        return observer_voice(world.style_profile_id, "character_opportunistic")
+    return observer_voice(world.style_profile_id, "character_reactive")
 
 
-def _civilization_observer_voice(civilization: object) -> str:
+def _civilization_observer_voice(world: WorldState, civilization: object) -> str:
     governance_mode = getattr(civilization, "governance_mode", "")
     if governance_mode == "hybrid_governance":
-        return "Use a macro-political tone, as if reading structural drift inside a layered governing order rather than judging individuals."
+        return observer_voice(world.style_profile_id, "civilization_hybrid_governance")
     if governance_mode == "security_state":
-        return "Use a cold institutional tone, emphasizing control, lock-in, and the cost of maintaining order."
-    return "Use a broad civilizational tone, emphasizing trajectory, governing tension, and system-level pressure."
+        return observer_voice(world.style_profile_id, "civilization_security_state")
+    return observer_voice(world.style_profile_id, "civilization_default")
 
 
-def _relic_observer_voice(relic: object) -> str:
+def _relic_observer_voice(world: WorldState, relic: object) -> str:
     relic_type = getattr(relic, "relic_type", "")
     if relic_type == "megastructure":
-        return "Write like an observer facing an unfinished or active large-scale structure, emphasizing scale, disturbance, and organized human effort around it."
-    return "Write like an observer facing a non-human anomaly or exceptional presence, emphasizing unease, attraction, and surrounding pressure."
+        return observer_voice(world.style_profile_id, "relic_megastructure")
+    return observer_voice(world.style_profile_id, "relic_exceptional_presence")
 
 
-def _faction_observer_voice(faction: object) -> str:
+def _faction_observer_voice(world: WorldState, faction: object) -> str:
     doctrine_tags = set(getattr(faction, "doctrine_tags", []) or [])
     if {"efficiency", "growth"} & doctrine_tags:
-        return "Use an organizational-intelligence tone, emphasizing throughput, leverage, and disciplined expansion."
+        return observer_voice(world.style_profile_id, "faction_efficiency_growth")
     if {"secrecy", "legacy_control"} & doctrine_tags:
-        return "Use a guarded internal-briefing tone, emphasizing concealment, controlled access, and indirect pressure."
+        return observer_voice(world.style_profile_id, "faction_secrecy_legacy")
     if {"security", "order"} & doctrine_tags:
-        return "Use a security-apparatus tone, emphasizing stabilization, containment, and visible enforcement."
-    return "Use a factional observation tone, emphasizing doctrine, positioning, and how the organization bends local conditions."
+        return observer_voice(world.style_profile_id, "faction_security_order")
+    return observer_voice(world.style_profile_id, "faction_default")

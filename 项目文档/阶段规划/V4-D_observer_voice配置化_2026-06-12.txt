@@ -1,0 +1,76 @@
+Terrarium Project V4-D observer voice 配置化记录
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V4-D |
+| 目标 | 将 `observer.py` 中的观察文风长句集中到 `WorldStyleProfile` |
+| 默认 profile | `realistic_future_anomaly` |
+| 改动边界 | 只迁移 voice 文案，不改 observer 输入过滤、不改 player/truth 信息差 |
+
+二、已实现内容
+
+| 文件 | 改动 |
+|---|---|
+| `src/world/style_profile.py` | `WorldStyleProfile` 新增 `observer_voices` |
+| `src/world/style_profile.py` | 新增 `observer_voice(style_id, voice_key)` 查询函数 |
+| `src/narrative/observer.py` | region / character / civilization / relic / faction voice 改为从 profile 查询 |
+| `tests/test_style_profile.py` | 覆盖 voice map 查询和 fallback |
+| `tests/test_dynamic_structure_contexts.py` | 覆盖 observer prompt 中的 `Narrative voice` |
+
+三、迁移后的 voice key
+
+| key | 用途 |
+|---|---|
+| `region_public_pressure` | 地区公共压力观察 |
+| `region_neutral` | 地区中性观察 |
+| `character_strategic` | 策略型人物 |
+| `character_opportunistic` | 机会型人物 |
+| `character_reactive` | 反应型人物 |
+| `civilization_hybrid_governance` | 混合治理文明 |
+| `civilization_security_state` | 安全国家/强控制文明 |
+| `civilization_default` | 默认文明观察 |
+| `relic_megastructure` | 巨构/大型工程异常 |
+| `relic_exceptional_presence` | 非人异常/特殊存在 |
+| `faction_efficiency_growth` | 效率/增长型组织 |
+| `faction_secrecy_legacy` | 保密/遗产控制型组织 |
+| `faction_security_order` | 安保/秩序型组织 |
+| `faction_default` | 默认组织观察 |
+
+四、保留逻辑
+
+| 保留 | 原因 |
+|---|---|
+| observer 对象状态分支 | 仍需要根据角色 agency、文明治理模式、relic 类型、组织 doctrine 选择 voice |
+| observer 输入过滤 | 防止 player 视角泄漏 truth 字段 |
+| prompt 长度限制 | brief/full 输出密度仍由 observer prompt 控制 |
+
+五、不做事项
+
+| 不做 | 原因 |
+|---|---|
+| 不改 summary 标题 | 留给 V4-E NarrativeLexicon |
+| 不改 labels/names | 留给 V4-E |
+| 不做第二 profile | 留给 V4-I |
+| 不让 AI 自由新增 voice | 当前 voice 必须来自代码内 approved profile |
+
+六、验收
+
+| 验收项 | 状态 |
+|---|---|
+| voice 文案集中到 profile | 已完成 |
+| observer prompt 仍有正确 Narrative voice | 已覆盖 |
+| 未知 voice key 回退默认 voice | 已覆盖 |
+| player/truth 逻辑未改动 | 已保持 |
+
+七、下一步
+
+推荐进入 V4-E：
+
+```text
+NarrativeLexicon 标题与标签层
+```
+
+优先迁移 DynamicStructure / EmergentPresence 相关观察标题和块名，因为它们范围小、测试已有、刚完成 V3，风险低。
