@@ -297,6 +297,46 @@ class DynamicStructureTests(unittest.TestCase):
         self.assertNotIn("dyn_", output)
         self.assertNotIn("tags:", output)
 
+    def test_dynamic_structure_apply_survives_long_run_without_leaks_or_growth(self) -> None:
+        world = _build_world()
+        structure_id = apply_dynamic_structure_proposals(world, _sample_payload(world)).accepted[0]
+        cfg = DEFAULT_AI_CONFIG.copy()
+        cfg["provider"] = "none"
+        engine = WorldEngine(world, ai_config=cfg)
+
+        for _ in range(60):
+            engine.step()
+
+        self.assertEqual(len(world.dynamic_structures), 1)
+        self.assertEqual(world.dynamic_structures[structure_id].status, "archived")
+        self.assertTrue(
+            any(structure_id in event.dynamic_structure_refs for event in world.event_stream.events),
+            "expected original dynamic structure event to remain traceable after long run",
+        )
+        refs = {thread.scope_ref for thread in world.pressure_threads.values()}
+        self.assertLessEqual(
+            max(
+                sum(1 for thread in world.pressure_threads.values() if thread.scope_ref == ref)
+                for ref in refs
+            ),
+            5,
+        )
+
+        region_id = next(iter(world.regions))
+        region_text = summarize_region(world, region_id, event_limit=5, mode="full", view="player")
+        dynamic_text = summarize_dynamic_structure(
+            world,
+            structure_id,
+            event_limit=5,
+            mode="full",
+            view="player",
+        )
+        self.assertIn("动态线索: 外界暂未看出稳定动态牵连", region_text)
+        self.assertNotIn("dyn_", region_text)
+        self.assertNotIn("dynamic_structures:", region_text)
+        self.assertNotIn("dyn_", dynamic_text)
+        self.assertNotIn("pressure_threads:", dynamic_text)
+
 
 if __name__ == "__main__":
     unittest.main()

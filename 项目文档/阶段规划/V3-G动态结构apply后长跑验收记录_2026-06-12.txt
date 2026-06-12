@@ -1,0 +1,70 @@
+Terrarium Project V3-G 动态结构 apply 后长跑验收记录
+
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-G |
+| 目标 | 验证 DynamicStructure apply 后在多 tick 世界推进中保持稳定 |
+| 范围 | apply / lifecycle / dedupe / observation / context 融合后的整体长跑 |
+| 原则 | 不新增功能，只做稳定性验收和回归测试 |
+
+二、自动化回归测试
+
+新增测试：
+
+| 文件 | 测试 |
+|---|---|
+| `tests/test_dynamic_structures.py` | `test_dynamic_structure_apply_survives_long_run_without_leaks_or_growth` |
+
+覆盖内容：
+
+| 检查项 | 结果 |
+|---|---|
+| apply 后 60 tick 推进不报错 | 通过 |
+| DynamicStructure 不重复增长 | 通过 |
+| stale dynamic structure 自动归档 | 通过 |
+| 原始 dynamic event trace 保留 | 通过 |
+| pressure threads 单 scope 上限保持 <= 5 | 通过 |
+| region player 输出不泄漏 `dyn_` | 通过 |
+| region player 输出不泄漏 `dynamic_structures:` | 通过 |
+| watch dynamic player 不泄漏 `dyn_` / `pressure_threads:` | 通过 |
+
+三、独立 100 tick 抽样
+
+抽样结果：
+
+| 指标 | 值 |
+|---|---:|
+| tick | 100 |
+| dynamic_count | 1 |
+| dynamic_status | archived |
+| events | 1992 |
+| pressure_threads | 221 |
+| max_threads_per_scope | 5 |
+| relations | 410 |
+| dynamic_event_trace | 1 |
+
+四、验证命令
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_dynamic_structures` | 13 tests OK |
+| `python -m unittest discover -s tests` | 93 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+五、结论
+
+| 项 | 结论 |
+|---|---|
+| V3-G 是否完成 | 完成 |
+| apply 后长跑是否稳定 | 是 |
+| 是否出现 dynamic 无限增长 | 否 |
+| 是否出现 pressure thread 失控 | 否 |
+| 是否出现 player 内部 token 泄漏 | 未发现 |
+| 是否保留历史追踪 | 是 |
+| 下一步 | V3-H：半独立实体设计 |
+
+V3-G 完成后，第三版前半段的工程闭环已经成立：DynamicStructure 可以安全落库、被观察、被生命周期管理、被去重、被目标选择策略约束，并进入 AI 上下文。下一步不应继续堆小修，而应进入半独立实体设计，为新生命 / 异常生态等更独立结构做方案。
