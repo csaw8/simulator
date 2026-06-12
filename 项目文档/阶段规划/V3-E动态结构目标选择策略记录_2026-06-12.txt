@@ -1,0 +1,87 @@
+Terrarium Project V3-E 动态结构目标选择策略记录
+
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-E |
+| 目标 | 控制哪些固定对象值得触发 dynamic proposal，避免无差别调用 AI |
+| 原则 | 不自动批量 apply，不触发 AI，只输出候选与理由 |
+| 使用方式 | `targets dynamic [n]` |
+
+二、候选范围
+
+| 对象 | 是否纳入 |
+|---|---|
+| region | 是 |
+| faction | 是 |
+| relic | 是 |
+| project | 是 |
+| supply | 是 |
+| node | 是 |
+| civilization | 暂不纳入，后续适合做汇总级目标 |
+| character | 暂不纳入，后续放到 intent/context 融合阶段 |
+| dynamic structure | 不作为新 proposal 目标，后续 update 由去重/显式 update 处理 |
+
+三、评分依据
+
+| 信号 | 作用 |
+|---|---|
+| recent events | 最近事件越多，越值得生成动态结构 |
+| pressure threads | 活跃压力线越多，越值得生成动态结构 |
+| relations | 关系前线越密集，越值得生成动态结构 |
+| nearby dynamic structures | 已有邻近动态结构会降低优先级，避免重复采样 |
+
+默认推荐门槛：
+
+| 项 | 值 |
+|---|---:|
+| `DEFAULT_DYNAMIC_TARGET_THRESHOLD` | 5 |
+
+四、CLI 输出
+
+| 命令 | 作用 |
+|---|---|
+| `targets dynamic` | 输出前 10 个候选 |
+| `targets dynamic 5` | 输出前 5 个候选 |
+
+输出字段：
+
+| 字段 | 含义 |
+|---|---|
+| score | 调整后的目标分 |
+| events | 最近事件数量 |
+| threads | 活跃压力线数量 |
+| relations | 关系数量 |
+| nearby_dynamic | 已有邻近动态结构数量 |
+| recommended / watch | 是否建议作为 proposal 抽样目标 |
+
+五、实现范围
+
+| 文件 | 内容 |
+|---|---|
+| `src/core/dynamic_structure_targets.py` | 新增候选选择、打分、格式化输出 |
+| `src/interfaces/commands.py` | 新增 `targets dynamic [n]` 命令 |
+| `tests/test_dynamic_structure_targets.py` | 增加排序、去重复采样惩罚、CLI 输出测试 |
+| `项目文档/可用命令.txt` | 增加目标选择命令 |
+
+六、验证
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_dynamic_structure_targets` | 4 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+七、结论
+
+| 项 | 结论 |
+|---|---|
+| V3-E 是否完成 | 完成 |
+| 是否自动调用 AI | 否 |
+| 是否自动 apply | 否 |
+| 是否降低未来成本失控风险 | 是 |
+| 下一步 | V3-F：动态结构进入 intent / observer context |
+
+V3-E 完成后，dynamic proposal 的调用范围有了可解释候选列表。后续应让角色意图和观察上下文能感知相关动态结构，但仍保持写入边界：AI 不能直接改固定对象字段。

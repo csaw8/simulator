@@ -16,6 +16,7 @@ from src.core.dynamic_structure_ai import (
     format_dynamic_structure_ai_result,
     propose_dynamic_structures_for_watch,
 )
+from src.core.dynamic_structure_targets import format_dynamic_structure_targets
 from src.events.query import select_events
 from src.events.taxonomy import event_matches_focus
 from src.interfaces.stream_view import (
@@ -86,6 +87,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch supply <id> [brief|full] [player|truth] [focus=theme]     Observe a supply line\n"
             "  watch dynamic <id> [brief|full] [player|truth] [focus=theme]    Observe a dynamic structure\n"
             "  Add propose=dynamic for dry-run dynamic proposals, or apply=dynamic to write accepted proposals\n"
+            "  targets dynamic [n]     Show high-signal targets for dynamic proposal sampling\n"
             "  audit proposals [n]      Show recent AI proposal audit records\n"
             "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
             "  debug llm         Test one live SiliconFlow request on the top wake candidate\n"
@@ -111,6 +113,9 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
 
     if action == "audit":
         return _handle_audit(context, parts)
+
+    if action == "targets":
+        return _handle_targets(context, parts)
 
     if action == "debug":
         return _handle_debug(context, parts)
@@ -160,6 +165,18 @@ def _handle_audit(context: CommandContext, parts: list[str]) -> str:
         except ValueError:
             return "Usage: audit proposals [n] | audit proposals summary [n]"
     return format_ai_proposal_audits(context.engine.world, limit=limit)
+
+
+def _handle_targets(context: CommandContext, parts: list[str]) -> str:
+    if len(parts) < 2 or parts[1].lower() != "dynamic":
+        return "Usage: targets dynamic [n]"
+    limit = 10
+    if len(parts) >= 3:
+        try:
+            limit = max(1, int(parts[2]))
+        except ValueError:
+            return "Usage: targets dynamic [n]"
+    return format_dynamic_structure_targets(context.engine.world, limit=limit)
 
 
 def _handle_frame(context: CommandContext, parts: list[str]) -> str:
