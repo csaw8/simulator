@@ -7,6 +7,7 @@ from typing import Any
 
 from src.events.models import Event
 from src.events.visibility_rules import normalize_event_visibility
+from src.world.descriptor_profile import ensure_descriptor_profile
 from src.world.emergent_presence import (
     ALLOWED_EMERGENT_LIFECYCLE_STAGES,
     ALLOWED_EMERGENT_MOBILITY,
@@ -277,6 +278,7 @@ def _apply_one_emergent_presence_proposal(
         )
         _append_unique(presence.influence_refs, target_ref, limit=12)
     _refresh_emergent_pressure_threads(world, presence, event)
+    ensure_descriptor_profile(world, presence.presence_id, "emergent_presence")
     return presence, event
 
 

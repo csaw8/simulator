@@ -7,6 +7,7 @@ from typing import Any
 
 from src.events.models import Event
 from src.events.visibility_rules import normalize_event_visibility
+from src.world.descriptor_profile import ensure_descriptor_profile
 from src.world.dynamic_structure import (
     ALLOWED_DYNAMIC_STRUCTURE_TYPES,
     DynamicStructure,
@@ -204,6 +205,7 @@ def _apply_one_dynamic_structure_proposal(
         )
         _append_unique(structure.influence_refs, target_ref, limit=12)
     _refresh_dynamic_structure_pressure_threads(world, structure, event)
+    ensure_descriptor_profile(world, structure.structure_id, "dynamic_structure")
     return structure, event
 
 

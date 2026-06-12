@@ -1,0 +1,75 @@
+V4-G DescriptorProfile 最小落地
+
+日期：2026-06-12
+
+目标
+
+- 将 V4-F 的 approved descriptor pool 落为可保存、可查询、可复用的轻量描述档案。
+- 支持固定池 + seed 可复现初始化。
+- 支持 snapshot 保存/读取。
+- 对运行时新增的 DynamicStructure / EmergentPresence 自动补 descriptor profile。
+- 不接 AI，不让 descriptor 参与规则核心判断。
+
+本轮实现
+
+| 项 | 内容 |
+|---|---|
+| 新文件 | `src/world/descriptor_profile.py` |
+| 核心结构 | `DescriptorProfile` |
+| WorldState | 新增 `descriptor_profiles: dict[str, DescriptorProfile]` |
+| 初始化 | `build_world` 末尾调用 `initialize_descriptor_profiles` |
+| 保存读取 | `src/storage/snapshots.py` 保存/加载 `descriptor_profiles` |
+| 运行时对象 | `apply_dynamic_structure_proposals` 和 `apply_emergent_presence_proposals` 成功后调用 `ensure_descriptor_profile` |
+| 显示辅助 | `descriptor_profile_player_labels` 将 tag_id 转为中文 player-facing 标签 |
+| 校验辅助 | `validate_descriptor_profile` 检查所有 tag 是否属于 approved pool |
+
+DescriptorProfile 字段
+
+| 字段 | 用途 |
+|---|---|
+| `ref_id` | 对象 ID |
+| `profile_type` | `character / region_node / relic / project / supply_line / dynamic_structure / emergent_presence` |
+| `appearance_tags` | 外观描述标签 |
+| `function_tags` | 功能描述标签 |
+| `behavior_tags` | 行为倾向标签 |
+| `sensory_tags` | 感官特征标签 |
+| `social_read_tags` | 社会观感标签 |
+| `ecological_tags` | 生态影响标签 |
+| `notes` | 少量稳定补充文本，当前暂不自动填充 |
+
+初始化策略
+
+| 项 | 决策 |
+|---|---|
+| 固定初始化 | 使用 V4-F 的 approved descriptor pool |
+| 可复现 | `build_world` 使用同一个 seed 和固定对象顺序，测试覆盖同 seed 输出一致 |
+| 运行时新增 | 用 `world.seed/current_tick/profile_type/ref_id` 派生局部 RNG，不消耗主 builder RNG |
+| 标签数量 | 当前每个类别最多 1 个 tag，避免早期过度填充 |
+| 空类别 | 如果某对象类型没有适配 tag，保留空列表 |
+
+边界
+
+| 不做项 | 原因 |
+|---|---|
+| 不接 AI descriptor proposal | V4-H 内容 |
+| 不改变 summary 输出 | 先验证数据层稳定，再决定输出接入点 |
+| 不让 descriptor 参与规则权重 | 避免把描述档案提前变成复杂规则系统 |
+| 不允许 AI 自由新增标签 | 第五阶段后半或更后才考虑 |
+| 不改固定对象字段 | DescriptorProfile 与已有对象并列存储 |
+
+验证
+
+| 测试 | 覆盖 |
+|---|---|
+| `tests/test_descriptor_profiles.py` | 初始化覆盖、同 seed 复现、approved tag 校验、player 中文标签、snapshot 保存读取、运行时新增对象 profile |
+| `tests/test_dynamic_structures.py` | DynamicStructure proposal 行为不退化 |
+| `tests/test_emergent_presences.py` | EmergentPresence proposal 行为不退化 |
+| `tests/test_snapshots.py` | 旧有 snapshot 行为不退化 |
+
+后续
+
+| 批次 | 内容 |
+|---|---|
+| V4-H | AI descriptor 候选组合试点：只从 approved pool 中选标签，proposal -> validation -> audit -> apply |
+| V4-I | 风格回归与第二 profile 小试点 |
+| V4-Z | 第四阶段封口 |

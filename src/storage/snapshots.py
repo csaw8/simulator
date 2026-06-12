@@ -11,6 +11,7 @@ from src.events.stream import EventStream
 from src.world.ai_audit import AIProposalAudit
 from src.world.character import Character
 from src.world.civilization import Civilization
+from src.world.descriptor_profile import DescriptorProfile
 from src.world.dynamic_structure import DynamicStructure
 from src.world.emergent_presence import EmergentPresence
 from src.world.faction import Faction
@@ -50,6 +51,7 @@ def save_world_state(world: WorldState, path: Path = DEFAULT_SNAPSHOT_PATH) -> N
         "region_nodes": {key: asdict(value) for key, value in world.region_nodes.items()},
         "dynamic_structures": {key: asdict(value) for key, value in world.dynamic_structures.items()},
         "emergent_presences": {key: asdict(value) for key, value in world.emergent_presences.items()},
+        "descriptor_profiles": {key: asdict(value) for key, value in world.descriptor_profiles.items()},
         "ai_proposal_audits": {key: asdict(value) for key, value in world.ai_proposal_audits.items()},
         "pressure_threads": {key: asdict(value) for key, value in world.pressure_threads.items()},
         "relations": {key: asdict(value) for key, value in world.relations.items()},
@@ -100,6 +102,9 @@ def load_world_state(path: Path = DEFAULT_SNAPSHOT_PATH) -> WorldState:
     }
     world.emergent_presences = {
         key: EmergentPresence(**value) for key, value in payload.get("emergent_presences", {}).items()
+    }
+    world.descriptor_profiles = {
+        key: DescriptorProfile(**value) for key, value in payload.get("descriptor_profiles", {}).items()
     }
     world.ai_proposal_audits = {
         key: AIProposalAudit(**value) for key, value in payload.get("ai_proposal_audits", {}).items()

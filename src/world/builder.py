@@ -6,6 +6,7 @@ from random import Random
 
 from src.world.character import Character
 from src.world.civilization import Civilization
+from src.world.descriptor_profile import initialize_descriptor_profiles
 from src.world.faction import Faction
 from src.world.frame import StructureTemplate
 from src.world.project import ProjectNetwork
@@ -248,6 +249,7 @@ def build_world(world_config: dict[str, int]) -> WorldState:
     _build_projects(state)
     _build_supply_lines(state, rng)
     _build_region_nodes(state)
+    initialize_descriptor_profiles(state, rng)
     return state
 
 
