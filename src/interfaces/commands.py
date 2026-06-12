@@ -10,6 +10,10 @@ from src.agents.scheduler import build_wake_schedule
 from src.config.models import AIConfig, WorldConfig
 from src.core.engine import WorldEngine, StepResult
 from src.core.budget import BudgetManager
+from src.core.dynamic_structure_ai import (
+    format_dynamic_structure_ai_result,
+    propose_dynamic_structures_for_watch,
+)
 from src.events.query import select_events
 from src.events.taxonomy import event_matches_focus
 from src.interfaces.stream_view import (
@@ -79,6 +83,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch relic <id> [brief|full] [player|truth] [focus=theme]      Observe a relic\n"
             "  watch supply <id> [brief|full] [player|truth] [focus=theme]     Observe a supply line\n"
             "  watch dynamic <id> [brief|full] [player|truth] [focus=theme]    Observe a dynamic structure\n"
+            "  Add propose=dynamic for dry-run dynamic proposals, or apply=dynamic to write accepted proposals\n"
             "  debug llm         Test one live SiliconFlow request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
             "  save              Save the current world snapshot\n"
@@ -326,10 +331,11 @@ def _parse_watch_mode(raw_mode: str) -> str:
     return "full" if mode == "full" else "brief"
 
 
-def _parse_watch_options(parts: list[str]) -> tuple[str, str, str | None]:
+def _parse_watch_options(parts: list[str]) -> tuple[str, str, str | None, str | None]:
     mode = "brief"
     view = TRUTH_VIEW
     focus: str | None = None
+    dynamic_proposal_mode: str | None = None
     for token in parts[3:]:
         lowered = token.strip().lower()
         if lowered in {"brief", "full"}:
@@ -338,7 +344,11 @@ def _parse_watch_options(parts: list[str]) -> tuple[str, str, str | None]:
             view = normalize_view(lowered)
         elif lowered.startswith("focus="):
             focus = lowered.split("=", 1)[1] or None
-    return mode, view, focus
+        elif lowered == "propose=dynamic":
+            dynamic_proposal_mode = "dry-run"
+        elif lowered == "apply=dynamic":
+            dynamic_proposal_mode = "apply"
+    return mode, view, focus, dynamic_proposal_mode
 
 
 def _handle_step(context: CommandContext, parts: list[str]) -> str:
@@ -396,7 +406,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
 
     target_type = parts[1].lower()
     target_id = parts[2]
-    mode, view, focus = _parse_watch_options(parts)
+    mode, view, focus, dynamic_proposal_mode = _parse_watch_options(parts)
     event_limit = 8 if mode == "full" else 5
     ai_config = context.ai_config.to_dict()
     skip_ai_observation = focus is not None
@@ -432,7 +442,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
                     ai_observation.tier,
                 )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type == "character":
         character = context.engine.world.characters.get(target_id)
@@ -468,7 +486,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
                     ai_observation.tier,
                 )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type == "civ":
         output = summarize_civilization(
@@ -501,7 +527,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
                     ai_observation.tier,
                 )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type == "relic":
         output = summarize_relic(
@@ -534,7 +568,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
                     ai_observation.tier,
                 )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type == "project":
         output = summarize_project(
@@ -546,7 +588,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             focus=focus,
         )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type == "node":
         output = summarize_region_node(
@@ -558,7 +608,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             focus=focus,
         )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type == "faction":
         output = summarize_faction(
@@ -591,7 +649,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
                     ai_observation.tier,
                 )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type == "supply":
         output = summarize_supply_line(
@@ -603,7 +669,15 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             focus=focus,
         )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     if target_type in {"dynamic", "structure"}:
         output = summarize_dynamic_structure(
@@ -615,9 +689,43 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             focus=focus,
         )
         save_world_state(context.engine.world, context.snapshot_path)
-        return output
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
 
     return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', 'supply', or 'dynamic'."
+
+
+def _append_dynamic_structure_proposal_if_requested(
+    context: CommandContext,
+    output: str,
+    *,
+    target_type: str,
+    target_id: str,
+    mode: str,
+    view: str,
+    dynamic_proposal_mode: str | None,
+) -> str:
+    if dynamic_proposal_mode is None:
+        return output
+    result = propose_dynamic_structures_for_watch(
+        context.engine.world,
+        target_type=target_type,
+        target_id=target_id,
+        ai_config=context.ai_config.to_dict(),
+        mode=mode,
+        view=view,
+        apply=dynamic_proposal_mode == "apply",
+    )
+    if dynamic_proposal_mode == "apply" and result.validation.accepted:
+        save_world_state(context.engine.world, context.snapshot_path)
+    return output + "\n" + format_dynamic_structure_ai_result(result)
 
 
 def _handle_debug(context: CommandContext, parts: list[str]) -> str:

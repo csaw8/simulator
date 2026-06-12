@@ -44,6 +44,11 @@ class AITierTests(unittest.TestCase):
         self.assertEqual(full.tier, DEFAULT_AI_CONFIG["observer_full_cost_tier"])
         self.assertGreaterEqual(full.max_tokens, brief.max_tokens)
 
+    def test_dynamic_structure_tier_can_use_low_cost_limits(self) -> None:
+        settings = resolve_named_tier(DEFAULT_AI_CONFIG, "low")
+        self.assertEqual(settings.max_tokens, DEFAULT_AI_CONFIG["low_cost_max_tokens"])
+        self.assertEqual(settings.thinking_budget, DEFAULT_AI_CONFIG["low_cost_thinking_budget"])
+
     def test_chronicler_uses_configured_tier(self) -> None:
         settings = resolve_chronicler_tier(DEFAULT_AI_CONFIG)
         self.assertEqual(settings.tier, DEFAULT_AI_CONFIG["chronicler_cost_tier"])

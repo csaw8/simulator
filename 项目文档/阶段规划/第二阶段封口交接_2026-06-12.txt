@@ -79,3 +79,17 @@ Terrarium Project 第二阶段封口交接
 | 测试 | 新增 `tests/test_dynamic_structures.py`，覆盖创建、拒绝、摘要、防泄漏、快照、CLI |
 
 后续接 AI 时，建议先让 AI 只输出 dynamic structure proposal，不允许直接改固定结构字段。
+
+九、AI 动态结构试点已完成
+
+| 项 | 结果 |
+|---|---|
+| 受控上下文 | 已新增 `build_dynamic_structure_context(...)` |
+| AI proposal prompt | 已新增 `prompts/dynamic_structure_proposal.txt` |
+| dry-run | `watch <type> <id> full truth propose=dynamic` |
+| apply | `watch <type> <id> full truth apply=dynamic` |
+| 成本 | 默认 `dynamic_structure_cost_tier=low` |
+| 失败保护 | 无客户端、非法 payload、未知 refs、非法类型均不会写入 world |
+| 当前验证 | 全量测试 73 个通过 |
+
+下一步建议：在真实 SiliconFlow 可用时，先用 `propose=dynamic` 观察 AI proposal 质量；确认稳定后再小规模使用 `apply=dynamic`。

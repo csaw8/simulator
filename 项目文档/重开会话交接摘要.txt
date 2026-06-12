@@ -33,6 +33,17 @@ AI 动态结构第一版已完成：
 | CLI | `watch dynamic <id>` |
 | 边界 | 不允许 AI 自由改固定结构 schema，不允许未知 refs 落库 |
 
+AI 动态结构试点也已接入：
+
+| 项 | 说明 |
+|---|---|
+| 输入摘要 | `src/core/ai_context.py` 构建受控上下文 |
+| AI 适配 | `src/core/dynamic_structure_ai.py` 调用 AI 并 dry-run/apply |
+| Prompt | `prompts/dynamic_structure_proposal.txt` |
+| CLI dry-run | `watch region region_04 full truth propose=dynamic` |
+| CLI apply | `watch region region_04 full truth apply=dynamic` |
+| 测试 | `tests/test_dynamic_structure_ai.py` 覆盖 dry-run、apply、拒绝、无客户端不污染 |
+
 最近验证：
 
 | 命令 | 结果 |

@@ -37,6 +37,8 @@
 - `watch supply supply_01 full truth`
 - `watch dynamic dyn_0001 full truth`
 - `watch dynamic dyn_0001 full player`
+- `watch region region_04 full truth propose=dynamic`
+- `watch region region_04 full truth apply=dynamic`
 
 四、focus 过滤示例
 

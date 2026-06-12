@@ -72,6 +72,28 @@ def apply_dynamic_structure_proposals(
     return result
 
 
+def validate_dynamic_structure_proposals(
+    world: WorldState,
+    payload: dict[str, Any],
+) -> DynamicProposalResult:
+    """Validate a proposal batch without mutating world state."""
+    result = DynamicProposalResult()
+    proposals = payload.get("proposals", [])
+    if not isinstance(proposals, list):
+        result.rejected.append("payload.proposals must be a list")
+        return result
+    for index, raw_proposal in enumerate(proposals[:MAX_PROPOSALS_PER_BATCH]):
+        if not isinstance(raw_proposal, dict):
+            result.rejected.append(f"proposal[{index}] must be an object")
+            continue
+        error = _validate_dynamic_structure_proposal(world, raw_proposal)
+        if error:
+            result.rejected.append(f"proposal[{index}]: {error}")
+            continue
+        result.accepted.append(f"proposal[{index}]")
+    return result
+
+
 def _validate_dynamic_structure_proposal(world: WorldState, proposal: dict[str, Any]) -> str | None:
     action = str(proposal.get("action", "create")).strip().lower()
     if action not in ALLOWED_DYNAMIC_ACTIONS:

@@ -61,6 +61,7 @@ class AIConfig:
     chronicler_cost_tier: str
     chronicle_signal_threshold: int
     observer_focus_ai_enabled: bool
+    dynamic_structure_cost_tier: str
 
     def to_dict(self) -> dict[str, object]:
         """Return a plain dictionary for existing integrations."""

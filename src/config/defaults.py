@@ -46,4 +46,5 @@ DEFAULT_AI_CONFIG = {
     "chronicler_cost_tier": "medium",
     "chronicle_signal_threshold": 16,
     "observer_focus_ai_enabled": False,
+    "dynamic_structure_cost_tier": "low",
 }

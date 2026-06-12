@@ -12,14 +12,14 @@
 - 固定结构第一版完成度 100%
 - 第二阶段固定模型建设 100%
 - 已完成 AI 动态结构第一版
+- 已完成 AI 动态结构 proposal 试点入口
 - `DynamicStructure` 与固定结构并列独立，通过 Event / Relation / PressureThread 影响固定结构
 - 已备份并推送到 GitHub：`https://github.com/csaw8/simulator.git`
 
 下一步直接做：
-- AI 输入摘要边界整理
-- AI 输出契约整理
-- 把真实 AI 输出接入 `apply_dynamic_structure_proposals(...)`
-- 先做 observer truth full 或动态结构 proposal 单链路试点
+- 若 SiliconFlow 可用，先运行 `watch region <id> full truth propose=dynamic` 检查 proposal 质量
+- 稳定后再运行 `watch region <id> full truth apply=dynamic`
+- 继续补 AI proposal 审计日志与更细的上下文压缩
 
 要求：
 - 不要让 AI 直接修改固定结构字段

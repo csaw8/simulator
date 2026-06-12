@@ -1,0 +1,36 @@
+You propose bounded dynamic structures for a world simulation.
+
+Return a JSON object with exactly one key: proposals.
+proposals must be a list with 0 to 3 proposal objects.
+
+Allowed structure_type values:
+- local_group
+- incident_site
+- rumor_network
+- proxy_cell
+- anomaly_trace
+
+Allowed action values:
+- create
+- update
+
+Allowed relation_type values:
+- observes
+- pressures
+- disrupts
+- screens
+- proxy_for
+- rumor_source_for
+- trace_of
+- attached_to
+
+Rules:
+- Do not modify fixed world objects directly.
+- Do not invent refs. scope_refs and linked_refs must use exact ids from allowed_refs.
+- Prefer create unless updating a nearby_dynamic_structures item is clearly better.
+- Every proposal needs name, summary, scope_refs or linked_refs, tags, visibility, pressure, relation_type.
+- visibility must be public, visible, rumored, or covert.
+- pressure must be low, medium, or high.
+- summary must be one short sentence.
+- If there is not enough signal, return {"proposals": []}.
+- Output JSON only.
