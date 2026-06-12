@@ -13,6 +13,8 @@ Terrarium Project AI 真实联网测试记录
 | observer live 调用 | region / character / civilization / faction / relic 均成功 |
 | dynamic proposal dry-run | 初次发现 token 截断问题，修复后成功 |
 | dynamic proposal apply | live 调用成功，但样本返回空 proposals，未落库 |
+| dynamic proposal 后续抽样 | 6 条覆盖 region/faction/relic/project/supply/node，API 全成功，1 条 accepted，5 条空 proposal |
+| dynamic proposal prompt 二次修复 | 明确 proposal 是候选提案而非权威事实，强信号时可命名候选结构 |
 
 二、重要发现
 
@@ -36,6 +38,8 @@ Terrarium Project AI 真实联网测试记录
 | observer relic | 成功，返回中文观察文本 |
 | dynamic proposal dry-run | 成功，validator accepted `proposal[0]`，未写入 world |
 | dynamic proposal apply | 模型返回 `{"proposals": []}`，因此未写入 world |
+| dynamic proposal 多目标 dry-run | 6 条样本中 1 条合法 proposal，0 解析错误，0 validator 拒绝 |
+| dynamic proposal 最终复测 | 合法返回 `proxy_cell` proposal，validator accepted `proposal[0]` |
 
 四、当前状态
 
@@ -45,6 +49,7 @@ Terrarium Project AI 真实联网测试记录
 | 动态结构 proposal 解析 | 修复后可用 |
 | 动态结构 dry-run | 可用 |
 | 动态结构 apply | 通道可用，但仍需更多真实样本评估模型何时愿意返回 proposal |
+| proposal 非空率 | 当前小样本约 17%，强信号 prompt 修复后可稳定触发至少一条合法样本 |
 | 建议 | 先继续收集 5-10 条 `propose=dynamic` audit，再考虑稳定使用 `apply=dynamic` |
 
 五、下一步建议

@@ -62,12 +62,20 @@ def build_dynamic_structure_context(
         for structure in world.dynamic_structures.values()
         if target_id in structure.scope_refs or target_id in structure.linked_refs
     ][:6]
+    signal_score = _dynamic_structure_context_signal_from_parts(
+        recent_events=recent_events,
+        pressure_threads=pressure_threads,
+        relations=relations,
+    )
     return {
         "tick": world.current_tick,
         "target_type": target_type,
         "target_id": target_id,
         "target_label": format_entity_ref(world, target_id),
         "world_frame": world.structure_template.brief_signature(),
+        "proposal_signal_score": signal_score,
+        "proposal_required": signal_score >= 5,
+        "proposal_guidance": _proposal_guidance(signal_score),
         "recent_events": recent_events,
         "pressure_threads": pressure_threads,
         "relations": relations,
@@ -86,10 +94,33 @@ def dynamic_structure_context_signal(context: dict[str, object]) -> int:
     """Estimate whether a target has enough signal for dynamic proposal generation."""
     if context.get("error"):
         return 0
-    score = min(len(context.get("recent_events", [])), 4)
-    score += min(len(context.get("pressure_threads", [])), 3)
-    score += min(len(context.get("relations", [])), 2)
+    if "proposal_signal_score" in context:
+        return int(context.get("proposal_signal_score", 0))
+    return _dynamic_structure_context_signal_from_parts(
+        recent_events=list(context.get("recent_events", [])),
+        pressure_threads=list(context.get("pressure_threads", [])),
+        relations=list(context.get("relations", [])),
+    )
+
+
+def _dynamic_structure_context_signal_from_parts(
+    *,
+    recent_events: list[dict[str, object]],
+    pressure_threads: list[dict[str, object]],
+    relations: list[dict[str, object]],
+) -> int:
+    score = min(len(recent_events), 4)
+    score += min(len(pressure_threads), 3)
+    score += min(len(relations), 2)
     return score
+
+
+def _proposal_guidance(signal_score: int) -> str:
+    if signal_score >= 5:
+        return "strong_signal: prefer exactly one compact proposal if a plausible bounded structure can be named."
+    if signal_score >= 3:
+        return "medium_signal: propose one structure only if recent events imply a concrete local group, incident site, rumor network, proxy cell, or anomaly trace."
+    return "weak_signal: return an empty proposals list unless the supplied context clearly names a concrete structure."
 
 
 def _event_ref_ids(event) -> list[str]:

@@ -48,6 +48,7 @@ Terrarium Project 当前已实现功能说明
 | 快照 | `ai_proposal_audits` 已接入 save/load |
 | 限流 | 审计记录最多保留最近 80 条 |
 | 真实联网测试 | 2026-06-12 已完成第一轮 live 抽样，详见 `项目文档/AI真实联网测试记录_2026-06-12.txt` |
+| live prompt 修复 | dynamic proposal 已明确“候选提案非权威事实”，强信号样本可返回合法 proposal |
 
 一、项目定位
 

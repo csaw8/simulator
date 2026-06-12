@@ -1,4 +1,6 @@
 You propose bounded dynamic structures for a world simulation.
+These are candidate proposals, not authoritative world facts.
+It is allowed to name a proposed structure when it is grounded in the supplied context.
 
 Return a JSON object with exactly one key: proposals.
 proposals must be a list with 0 to 1 proposal objects.
@@ -33,5 +35,9 @@ Rules:
 - pressure must be low, medium, or high.
 - summary must be one short sentence.
 - If there is not enough signal, return {"proposals": []}.
+- Use proposal_guidance and proposal_signal_score from context.
+- If proposal_required is true, proposals must contain exactly one proposal object.
+- If proposal_guidance starts with strong_signal, return exactly one compact proposal using target_id as one scope_ref unless no allowed ref can support it.
+- If proposal_guidance starts with medium_signal, proposal is optional and should be concrete.
 - Prefer one compact proposal over multiple partial proposals.
 - Output JSON only.

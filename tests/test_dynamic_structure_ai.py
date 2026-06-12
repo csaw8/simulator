@@ -5,6 +5,7 @@ from pathlib import Path
 from src.config.defaults import DEFAULT_AI_CONFIG, DEFAULT_WORLD_CONFIG
 from src.config.models import AIConfig, WorldConfig
 from src.core.dynamic_structure_ai import propose_dynamic_structures_for_watch
+from src.core.ai_context import build_dynamic_structure_context, dynamic_structure_context_signal
 from src.core.engine import WorldEngine
 from src.interfaces.commands import CommandContext, handle_command
 from src.storage.snapshots import load_world_state, save_world_state
@@ -65,6 +66,18 @@ def _payload(world):
 
 
 class DynamicStructureAITests(unittest.TestCase):
+    def test_dynamic_structure_context_includes_signal_guidance(self) -> None:
+        world = _world_with_signal()
+        context = build_dynamic_structure_context(
+            world,
+            target_type="region",
+            target_id=next(iter(world.regions)),
+        )
+        self.assertIn("proposal_signal_score", context)
+        self.assertIn("proposal_required", context)
+        self.assertIn("proposal_guidance", context)
+        self.assertEqual(dynamic_structure_context_signal(context), context["proposal_signal_score"])
+
     def test_dynamic_structure_ai_dry_run_validates_without_mutating_world(self) -> None:
         world = _world_with_signal()
         before_count = len(world.dynamic_structures)

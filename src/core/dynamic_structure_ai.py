@@ -286,6 +286,11 @@ def _build_dynamic_structure_messages(context: dict[str, object]) -> list[dict[s
     system_rules = (PROMPT_ROOT / "system_rules.txt").read_text(encoding="utf-8").strip()
     task_prompt = (PROMPT_ROOT / "dynamic_structure_proposal.txt").read_text(encoding="utf-8").strip()
     context_json = json.dumps(context, ensure_ascii=False, indent=2)
+    final_instruction = (
+        "Final instruction for this call: proposal_required is true. This is only a candidate proposal, not an authoritative fact. Return exactly one valid proposal object in proposals."
+        if context.get("proposal_required")
+        else "Final instruction for this call: proposal_required is false, so return proposals only if the context clearly supports one."
+    )
     return [
         {"role": "system", "content": system_rules},
         {
@@ -296,6 +301,8 @@ def _build_dynamic_structure_messages(context: dict[str, object]) -> list[dict[s
                     "",
                     "Use this bounded world context:",
                     context_json,
+                    "",
+                    final_instruction,
                 ]
             ),
         },
