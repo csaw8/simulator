@@ -1,0 +1,65 @@
+Terrarium Project V4-C prompt 风格配置化记录
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V4-C |
+| 目标 | 让 AI prompt 读取 `WorldStyleProfile`，不再直接散落核心世界风格硬编码 |
+| 默认 profile | `realistic_future_anomaly` |
+| 改动边界 | 只接入 prompt/context，不改 summary、validator、规则系统 |
+
+二、已实现内容
+
+| 文件 | 改动 |
+|---|---|
+| `src/world/style_profile.py` | 新增 `style_profile_prompt_lines(...)` |
+| `src/agents/prompt_builder.py` | intent prompt 使用 `style_profile_prompt_lines(world.style_profile_id)` |
+| `src/narrative/observer.py` | observer prompt 增加 `World style profile` 块 |
+| `src/core/ai_context.py` | DynamicStructure / EmergentPresence proposal context 增加 `style_profile` |
+| `tests/test_style_profile.py` | 覆盖 prompt lines |
+| `tests/test_dynamic_structure_contexts.py` | 覆盖 intent / observer prompt 含 style profile |
+| `tests/test_dynamic_structure_ai.py` | 覆盖 DynamicStructure context 含 style profile |
+| `tests/test_emergent_presence_ai.py` | 覆盖 EmergentPresence context 含 style profile |
+
+三、当前 prompt 中注入的 profile 信息
+
+| 字段 | 用途 |
+|---|---|
+| `World style` | 世界题材短句 |
+| `Setting summary` | 题材概述 |
+| `Technology level` | 技术等级 |
+| `Anomaly mode` | 异常存在模式 |
+| `Institution tone` | 制度/组织语气 |
+| `Preferred terms` | 推荐词 |
+| `Forbidden terms` | 禁用词 |
+
+四、刻意不做
+
+| 不做 | 原因 |
+|---|---|
+| 不改 observer voice 长句 | 留给 V4-D，避免本批次扩大范围 |
+| 不改 summary 标题 | 留给 V4-E，避免破坏 player/truth 测试 |
+| 不改 proposal validator | 第三阶段安全边界必须保持稳定 |
+| 不让 AI 自由新增标签 | 第五阶段后半或更后才考虑 |
+
+五、验收
+
+| 验收项 | 状态 |
+|---|---|
+| intent prompt 读取 profile | 已覆盖 |
+| observer prompt 读取 profile | 已覆盖 |
+| DynamicStructure proposal context 读取 profile | 已覆盖 |
+| EmergentPresence proposal context 读取 profile | 已覆盖 |
+| 默认输出不改 summary | 本批次未接 summary 路径 |
+
+六、下一步
+
+推荐进入 V4-D：
+
+```text
+observer voice 配置化
+```
+
+V4-D 重点是把 `src/narrative/observer.py` 中 region / character / civ / faction / relic 的 voice 长句集中到 profile/voice map，同时保持默认文风不退化。

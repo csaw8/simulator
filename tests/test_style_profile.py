@@ -8,6 +8,7 @@ from src.world.builder import build_world
 from src.world.style_profile import (
     DEFAULT_STYLE_PROFILE_ID,
     get_world_style_profile,
+    style_profile_prompt_lines,
     style_profile_to_dict,
 )
 
@@ -32,6 +33,14 @@ class WorldStyleProfileTests(unittest.TestCase):
 
         self.assertEqual(payload["style_id"], DEFAULT_STYLE_PROFILE_ID)
         self.assertIn("preferred_terms", payload)
+
+    def test_style_profile_prompt_lines_include_boundaries(self) -> None:
+        lines = style_profile_prompt_lines(DEFAULT_STYLE_PROFILE_ID)
+        text = "\n".join(lines)
+
+        self.assertIn("World style: realistic future technology civilization.", text)
+        self.assertIn("Setting summary:", text)
+        self.assertIn("Forbidden terms:", text)
 
     def test_world_state_uses_default_style_profile_id(self) -> None:
         world = build_world(DEFAULT_WORLD_CONFIG)

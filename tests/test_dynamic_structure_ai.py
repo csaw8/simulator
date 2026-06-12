@@ -76,6 +76,7 @@ class DynamicStructureAITests(unittest.TestCase):
         self.assertIn("proposal_signal_score", context)
         self.assertIn("proposal_required", context)
         self.assertIn("proposal_guidance", context)
+        self.assertEqual(context["style_profile"]["style_id"], "realistic_future_anomaly")
         self.assertEqual(dynamic_structure_context_signal(context), context["proposal_signal_score"])
 
     def test_dynamic_structure_ai_dry_run_validates_without_mutating_world(self) -> None:

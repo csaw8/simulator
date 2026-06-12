@@ -6,6 +6,7 @@ from src.events.visibility_rules import format_event_summary_for_view
 from src.narrative.names import format_entity_ref
 from src.world.relations import relations_for_ref
 from src.world.state import WorldState
+from src.world.style_profile import get_world_style_profile, style_profile_to_dict
 
 
 def build_dynamic_structure_context(
@@ -74,6 +75,7 @@ def build_dynamic_structure_context(
         "target_id": target_id,
         "target_label": format_entity_ref(world, target_id),
         "world_frame": world.structure_template.brief_signature(),
+        "style_profile": style_profile_to_dict(get_world_style_profile(world.style_profile_id)),
         "proposal_signal_score": signal_score,
         "proposal_required": signal_score >= 5,
         "proposal_guidance": _proposal_guidance(signal_score),
@@ -184,6 +186,7 @@ def build_emergent_presence_context(
         "target_id": target_id,
         "target_label": format_entity_ref(world, target_id),
         "world_frame": world.structure_template.brief_signature(),
+        "style_profile": style_profile_to_dict(get_world_style_profile(world.style_profile_id)),
         "proposal_signal_score": signal_score,
         "proposal_required": signal_score >= 5,
         "proposal_guidance": _emergent_proposal_guidance(signal_score),

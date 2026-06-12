@@ -88,3 +88,17 @@ def style_profile_to_dict(profile: WorldStyleProfile) -> dict[str, object]:
         "preferred_terms": list(profile.preferred_terms),
         "forbidden_terms": list(profile.forbidden_terms),
     }
+
+
+def style_profile_prompt_lines(style_id: str | None = None) -> list[str]:
+    """Return compact prompt lines for the selected world style profile."""
+    profile = get_world_style_profile(style_id)
+    return [
+        f"World style: {profile.world_style}.",
+        f"Setting summary: {profile.setting_summary}.",
+        f"Technology level: {profile.technology_level}",
+        f"Anomaly mode: {profile.anomaly_mode}",
+        f"Institution tone: {profile.institution_tone}",
+        "Preferred terms: " + (", ".join(profile.preferred_terms) or "None"),
+        "Forbidden terms: " + (", ".join(profile.forbidden_terms) or "None"),
+    ]

@@ -91,6 +91,7 @@ class EmergentPresenceAITests(unittest.TestCase):
         self.assertIn("proposal_signal_score", context)
         self.assertIn("proposal_required", context)
         self.assertIn("proposal_guidance", context)
+        self.assertEqual(context["style_profile"]["style_id"], "realistic_future_anomaly")
         self.assertEqual(emergent_presence_context_signal(context), context["proposal_signal_score"])
         self.assertIn(region_id, context["allowed_refs"]["regions"])
 

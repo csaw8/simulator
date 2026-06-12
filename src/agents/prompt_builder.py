@@ -9,6 +9,7 @@ from src.core.ai_context import related_dynamic_structure_context_lines
 from src.events.visibility_rules import format_event_summary_for_view
 from src.world.character import Character
 from src.world.state import WorldState
+from src.world.style_profile import style_profile_prompt_lines
 
 PROMPT_ROOT = Path("prompts")
 
@@ -87,7 +88,7 @@ def build_intent_messages(
 
     user_prompt = "\n".join(
         [
-            "World style: realistic future technology civilization.",
+            *style_profile_prompt_lines(world.style_profile_id),
             f"World pressure axes: {', '.join(world.structure_template.pressure_axes) or 'None'}",
             f"Dominant fronts: {', '.join(world.structure_template.dominant_fronts) or 'None'}",
             f"Organization climates: {', '.join(world.structure_template.organization_climates) or 'None'}",

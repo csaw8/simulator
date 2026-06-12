@@ -87,6 +87,8 @@ class DynamicStructureContextTests(unittest.TestCase):
         messages = build_intent_messages(world, character)
         user_prompt = messages[-1]["content"]
 
+        self.assertIn("Setting summary:", user_prompt)
+        self.assertIn("Anomaly mode: exceptional_presence", user_prompt)
         self.assertIn("Related dynamic structures (read-only context; do not target these ids):", user_prompt)
         self.assertIn("anomaly trace", user_prompt)
         self.assertNotIn("dyn_", user_prompt)
@@ -109,6 +111,8 @@ class DynamicStructureContextTests(unittest.TestCase):
 
         self.assertEqual(result.source, "deepseek")
         prompt = fake_client.messages[-1]["content"]
+        self.assertIn("World style profile:", prompt)
+        self.assertIn("realistic future technology civilization", prompt)
         self.assertIn("Related dynamic structures:", prompt)
         self.assertIn("Context Trace", prompt)
         self.assertIn("dyn_", prompt)

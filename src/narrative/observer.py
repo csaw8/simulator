@@ -14,6 +14,7 @@ from src.core.ai_tiers import resolve_observer_tier
 from src.narrative.visibility import is_player_view
 from src.world.presence import megastructure_origin_label, presence_class, presence_display_name
 from src.world.state import WorldState
+from src.world.style_profile import style_profile_prompt_lines
 
 PROMPT_ROOT = Path("prompts")
 
@@ -76,6 +77,7 @@ def observe_region_with_ai(
             *related_dynamic_structure_context_lines(world, [region_id], view=view, limit=4),
         ],
         mode=mode,
+        style_profile_id=world.style_profile_id,
         voice_instruction=_region_observer_voice(world, region_id),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
@@ -147,6 +149,7 @@ def observe_character_with_ai(
             ),
         ],
         mode=mode,
+        style_profile_id=world.style_profile_id,
         voice_instruction=_character_observer_voice(character),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
@@ -205,6 +208,7 @@ def observe_civilization_with_ai(
             ),
         ],
         mode=mode,
+        style_profile_id=world.style_profile_id,
         voice_instruction=_civilization_observer_voice(civilization),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
@@ -276,6 +280,7 @@ def observe_relic_with_ai(
             ),
         ],
         mode=mode,
+        style_profile_id=world.style_profile_id,
         voice_instruction=_relic_observer_voice(relic),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
@@ -344,6 +349,7 @@ def observe_faction_with_ai(
             ),
         ],
         mode=mode,
+        style_profile_id=world.style_profile_id,
         voice_instruction=_faction_observer_voice(faction),
     )
     return _run_observer_completion(client, messages, ai_config, mode)
@@ -374,6 +380,7 @@ def _build_observer_messages(
     title: str,
     body_lines: list[str],
     mode: str,
+    style_profile_id: str | None = None,
     voice_instruction: str | None = None,
 ) -> list[dict[str, str]]:
     system_rules = (PROMPT_ROOT / "system_rules.txt").read_text(encoding="utf-8").strip()
@@ -396,6 +403,8 @@ def _build_observer_messages(
             "You may infer mood, pressure, and likely atmosphere from the supplied facts.",
             "Do not include analysis, instructions, bullet points, or think tags.",
             style_instruction,
+            "World style profile:",
+            *style_profile_prompt_lines(style_profile_id),
             f"Narrative voice: {voice_instruction or 'Use a neutral outside-observer tone.'}",
             "Output only the final observation in the text field.",
             "",
