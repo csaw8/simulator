@@ -1,0 +1,316 @@
+Terrarium Project 第四阶段批次拆分
+日期：2026-06-12
+
+一、阶段定位
+
+| 项 | 内容 |
+|---|---|
+| 阶段 | 第四阶段 |
+| 阶段名称 | 风格解耦与题材配置阶段 |
+| 核心目标 | 把当前“现实未来科技 + 异常存在”的题材词、观察标题、prompt 风格、descriptor 词表集中管理 |
+| 默认题材 | realistic_future_anomaly |
+| 是否去科幻化 | 否 |
+| 是否改世界规则核心 | 否，优先抽出文风/题材边界，不重写规则系统 |
+| 是否允许 AI 自由新增标签 | 否，AI 自由新增 descriptor 标签放第五阶段后半或更后 |
+
+第四阶段不是把项目改成通用模拟器，而是让当前默认题材成为一个清晰的 profile：
+
+```text
+当前风格继续保留
+硬编码位置逐批收束
+AI prompt 读取统一风格边界
+summary / observer / descriptor 逐步词表化
+为第五阶段半开放结构模板提供题材边界
+```
+
+二、批次总览
+
+| 顺序 | 批次 | 名称 | 核心产物 | 是否改代码 | 风险 |
+|---:|---|---|---|---|---|
+| 1 | V4-A | 风格硬编码盘点与分级 | 硬编码清单、可迁移/暂不迁移分类 | 少量脚本或文档为主 | 低 |
+| 2 | V4-B | WorldStyleProfile 最小数据层 | 默认 profile、读取接口、测试 | 是 | 低 |
+| 3 | V4-C | prompt 风格配置化 | intent / observer / proposal prompt 读取 profile | 是 | 中 |
+| 4 | V4-D | observer voice 配置化 | observer voice map / style voice 读取接口 | 是 | 中 |
+| 5 | V4-E | NarrativeLexicon 标题与标签层 | 观察标题、块名、player/truth 标签集中 | 是 | 中高 |
+| 6 | V4-F | DescriptorLexicon 固定词表 | 外观/功能/行为/感官/社会观感词表 | 是 | 中 |
+| 7 | V4-G | DescriptorProfile 最小落地 | 对象描述档案、初始化固定池、snapshot | 是 | 中高 |
+| 8 | V4-H | AI descriptor 候选组合试点 | AI 只从 approved pool 选标签/调权，带 audit | 是 | 高 |
+| 9 | V4-I | 风格回归与第二 profile 试点 | 默认风格回归测试、小型非默认 profile 验证 | 是 | 中 |
+| 10 | V4-Z | 第四阶段封口 | 文档、测试、交接、第五阶段入口确认 | 文档为主 | 低 |
+
+三、V4-A：风格硬编码盘点与分级
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 把当前分散在 prompt、observer、summary、labels、names、builder、rules 中的题材/文风硬编码分级 |
+| 输入 | V3-L 风格解耦准备记录、rg 盘点结果、现有 prompt 和 summary 文件 |
+| 输出 | `V4-A风格硬编码盘点_YYYY-MM-DD.txt` |
+| 改动范围 | 文档为主；可增加只读盘点脚本，但不强制 |
+| 不做 | 不在本批次移动大量代码，不改 summary 输出 |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| 位置清单 | 至少覆盖 `prompt_builder.py / observer.py / summaries.py / labels.py / names.py / builder.py / visibility_rules.py` |
+| 分级 | 每个硬编码点标注 `profile迁移 / lexicon迁移 / descriptor迁移 / 暂不迁移 / 规则核心保留` |
+| 风险标注 | 标出 player/truth 防泄漏相关位置，避免后续迁移破坏信息差 |
+
+四、V4-B：WorldStyleProfile 最小数据层
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 建立默认风格 profile 数据结构和读取接口，不改变现有输出 |
+| 建议文件 | `src/world/style_profile.py` 或 `src/config/style_profile.py` |
+| 配置文件 | `config/style_profiles.yaml` 或先放 Python defaults |
+| 默认 profile | `realistic_future_anomaly` |
+| 改动边界 | 只新增读取能力，不大规模接入业务逻辑 |
+
+建议字段：
+
+| 字段 | 用途 |
+|---|---|
+| `style_id` | profile ID |
+| `world_style` | prompt 中的世界风格短句 |
+| `setting_summary` | 题材说明 |
+| `technology_level` | 技术等级 |
+| `anomaly_mode` | 异常存在模式 |
+| `institution_tone` | 制度/组织语气 |
+| `default_observer_voice` | 默认观察 voice |
+| `preferred_terms` | 推荐词 |
+| `forbidden_terms` | 禁用词 |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| 默认可读 | 测试能读取 `realistic_future_anomaly` |
+| 不改输出 | 全量测试通过，现有 summary 文案不变 |
+| fallback | profile 缺失时回退默认 profile |
+
+五、V4-C：prompt 风格配置化
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 让 AI prompt 使用 `WorldStyleProfile`，先处理最明显硬编码 |
+| 优先文件 | `src/agents/prompt_builder.py`、`src/narrative/observer.py`、proposal prompt 构造处 |
+| 核心改动 | `World style: realistic future technology civilization.` 改为 profile 读取 |
+| 不做 | 不重写所有 prompt 文案，不改变 proposal validator |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| intent prompt | 测试确认 prompt 包含 profile 的 `world_style` |
+| observer prompt | 测试确认 observer prompt 包含 profile voice 或 setting summary |
+| proposal prompt | DynamicStructure / EmergentPresence proposal 仍能 dry-run |
+| live 风险 | 默认 DeepSeek dry-run 至少跑一次 dynamic 或 emergent，确认 JSON 未退化 |
+
+六、V4-D：observer voice 配置化
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 把 `observer.py` 中的 voice 句子集中到 profile/lexicon 配置 |
+| 优先对象 | region / character / civ / faction / relic |
+| 保留原则 | 默认输出仍保持当前“制度压力 + 异常前线 + 工程/组织质感” |
+| 不做 | 不改变 `is_player_view` 和信息差规则 |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| voice map | 至少 region / character / faction / relic voice 不再散落长句硬编码 |
+| 默认质量 | observer 相关测试通过 |
+| player 安全 | player 视角不泄漏内部 ID 或 truth 字段 |
+
+七、V4-E：NarrativeLexicon 标题与标签层
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 把观察标题、块名、常见实体标签集中管理 |
+| 优先迁移 | `动态线索观察 / 异常生态观察 / 生态线索 / 异常观察 / 地区观察 / 项目观察` |
+| 建议结构 | `NarrativeLexicon` |
+| 最大风险 | summary 测试大量依赖固定中文文案 |
+
+建议拆法：
+
+| 子步骤 | 内容 |
+|---|---|
+| V4-E1 | 只建立 lexicon 和读取函数，不改输出 |
+| V4-E2 | 迁移 DynamicStructure / EmergentPresence 相关标题 |
+| V4-E3 | 迁移 region / relic / project 主要块名 |
+| V4-E4 | 更新测试从硬编码文本转向 lexicon 预期 |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| 默认文案一致 | 默认 profile 下原有关键中文标题不变 |
+| 测试通过 | player/truth 防泄漏测试不退化 |
+| 可替换 | 单元测试可用替代 lexicon 验证标题变化 |
+
+八、V4-F：DescriptorLexicon 固定词表
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 建立 approved descriptor pool，集中管理隐标签词表 |
+| 覆盖标签 | appearance / function / behavior / sensory / social_read / ecological |
+| 重点对象 | character / region_node / relic / dynamic_structure / emergent_presence |
+| 不做 | 不允许 AI 自由新增标签，不做复杂规则系统 |
+
+建议字段：
+
+| 字段 | 用途 |
+|---|---|
+| `tag_id` | 稳定标签 ID |
+| `zh_label` | 中文显示 |
+| `en_label` | prompt/AI 使用 |
+| `category` | 标签类别 |
+| `allowed_profile_types` | 适配对象 |
+| `style_constraints` | 适配 profile |
+| `conflict_group` | 冲突组 |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| 固定池可读 | 同 seed 可读取稳定词表 |
+| 标签可校验 | 非 approved tag 被拒绝 |
+| 与现有字段兼容 | EmergentPresence 的 behavior/sensory/ecological tags 可映射或通过 |
+
+九、V4-G：DescriptorProfile 最小落地
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 建立轻量描述档案层，让隐标签成为可保存、可查询、可复用状态 |
+| 建议文件 | `src/world/descriptor_profile.py` |
+| WorldState | 新增 `descriptor_profiles: dict[str, DescriptorProfile]` |
+| 初始化方式 | 固定池 + seed 随机抽取，保证离线可复现 |
+| 输出接入 | 先只接入少量 summary / AI context，不全面重写 |
+
+建议字段：
+
+| 字段 | 用途 |
+|---|---|
+| `ref_id` | 对象 ID |
+| `profile_type` | character / place / object / structure / presence |
+| `appearance_tags` | 外观 |
+| `function_tags` | 功能 |
+| `behavior_tags` | 行为 |
+| `sensory_tags` | 感官 |
+| `social_read_tags` | 社会观感 |
+| `notes` | 少量稳定补充 |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| snapshot | save/load 保留 descriptor_profiles |
+| seed 复现 | 同 seed 初始化结果一致 |
+| player 安全 | player 输出显示中文语义，不泄漏 tag_id |
+| 不污染规则 | 核心 rule 不依赖 descriptor 决策 |
+
+十、V4-H：AI descriptor 候选组合试点
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 让 AI 在 approved descriptor pool 内选择标签组合或建议权重 |
+| 触发方式 | 手动命令或初始化试验命令，不自动每 tick 调用 |
+| 写入方式 | proposal -> validation -> audit -> apply |
+| 失败回退 | 固定 seed 抽取 |
+| 不做 | 不允许 AI 新增 descriptor tag，不允许自由文本直接成为规则事实 |
+
+建议命令：
+
+| 命令 | 说明 |
+|---|---|
+| `propose descriptor <ref_id>` | AI 只 dry-run 候选标签组合 |
+| `propose descriptor <ref_id> apply` | validator 通过后写入 DescriptorProfile |
+| `audit descriptors` | 查看 descriptor proposal audit |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| validator | 不在 approved pool 的 tag 被拒绝 |
+| audit | accepted/rejected/payload/source/tier 可查 |
+| fallback | 无 key 或失败时不影响固定初始化 |
+| live | DeepSeek dry-run 至少通过 1 次 |
+
+十一、V4-I：风格回归与第二 profile 试点
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 证明默认 profile 没退化，并验证接口具备最小可替换性 |
+| 默认回归 | `realistic_future_anomaly` 输出仍保持当前风格 |
+| 第二 profile | 只做小型非默认 profile，不追求完整多题材 |
+| 推荐试点 | `post_collapse_frontier` 或 `low_magic_city_state` 二选一 |
+| 不做 | 不把所有规则和 taxonomy 全部题材化 |
+
+验收标准：
+
+| 验收项 | 标准 |
+|---|---|
+| 默认 profile | 全量测试通过，关键 summary 标题不变 |
+| 替代 profile | prompt / lexicon 可读取不同风格字段 |
+| 不影响存档 | 旧 snapshot 可读取 |
+
+十二、V4-Z：第四阶段封口
+
+| 项 | 内容 |
+|---|---|
+| 目标 | 对第四阶段代码、文档、测试、第五阶段入口进行收口 |
+| 输出 | 第四阶段最终总结、已实现能力、缺口、第五阶段启动清单 |
+| 验证 | 全量测试、compileall、DeepSeek dry-run、snapshot 兼容、player 防泄漏 |
+
+封口标准：
+
+| 验收项 | 标准 |
+|---|---|
+| profile | 默认 style profile 已进入 prompt 和 observer 主要路径 |
+| lexicon | 主要标题/块名可配置，默认输出不变 |
+| descriptor | 固定池和最小 DescriptorProfile 可保存读取 |
+| AI 边界 | AI 只能在 approved descriptor pool 内候选组合 |
+| 第五阶段入口 | 半开放结构模板所需的 style/lexicon/descriptor 边界已可用 |
+
+十三、推荐执行顺序
+
+| 执行轮次 | 建议完成内容 | 原因 |
+|---:|---|---|
+| 第一轮 | V4-A + V4-B | 先盘点，再建立 profile 数据层；低风险 |
+| 第二轮 | V4-C | prompt 配置化是收益最高的第一处代码接入 |
+| 第三轮 | V4-D | observer voice 是文风硬耦合核心 |
+| 第四轮 | V4-E1 + V4-E2 | 先迁移动结构/异常生态标题，范围小且刚完成 V3 |
+| 第五轮 | V4-F | 建立 descriptor pool，不急着写入对象 |
+| 第六轮 | V4-G | DescriptorProfile 最小落地 |
+| 第七轮 | V4-H | AI 候选组合试点 |
+| 第八轮 | V4-I + V4-Z | 回归、第二 profile 小试点、封口 |
+
+十四、不建议在第四阶段做的事
+
+| 不建议 | 原因 |
+|---|---|
+| 直接重写 `summaries.py` | 文件大、测试依赖多、容易破坏 player/truth 信息差 |
+| 把 event taxonomy 全部题材化 | taxonomy 参与规则判断，过早抽象会影响模拟稳定 |
+| 让 AI 自由新增 descriptor 标签 | 容易污染词表，应放第五阶段后半或更后 |
+| 让 AI 新增结构模板 | 这是第五阶段内容 |
+| 一次性做完整多题材切换 | 成本高，且会稀释当前默认风格 |
+| 把 SQLite 变成权威存档 | JSON snapshot 仍是权威，SQLite 继续做查询导出 |
+
+十五、当前最应该开始的任务
+
+建议下一步直接执行：
+
+```text
+V4-A：风格硬编码盘点与分级
+V4-B：WorldStyleProfile 最小数据层
+```
+
+原因：
+
+| 原因 | 说明 |
+|---|---|
+| 低风险 | 先做清单和只读 profile，不改变模拟规则 |
+| 收益明确 | 后续 prompt、observer、summary 迁移都需要 profile |
+| 防止失控 | 先定义哪些硬编码暂不迁移，避免第四阶段变成无边界重构 |
+| 衔接第五阶段 | style profile 是第五阶段 AI 模板边界的前置条件 |
