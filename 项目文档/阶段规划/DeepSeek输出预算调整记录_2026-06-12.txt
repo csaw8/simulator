@@ -1,0 +1,27 @@
+DeepSeek 输出预算调整记录
+日期：2026-06-12
+
+调整原因
+- DeepSeek V4-Pro 的价格较低，且最大输出能力远高于当前项目配置。
+- 第三阶段封口验证发现 EmergentPresence proposal 在 medium=220 tokens 下会截断 JSON。
+- 现有 low/medium/high 输出上限过保守，不适合结构化 JSON proposal。
+
+调整内容
+- max_tokens: 160 -> 512
+- low_cost_max_tokens: 120 -> 256
+- medium_cost_max_tokens: 220 -> 512
+- high_cost_max_tokens: 320 -> 1024
+- observer_max_tokens: 220 -> 320
+- observer_full_max_tokens: 320 -> 512
+
+保留原则
+- 不改变 AI 权限。
+- 不改变 proposal -> validation -> audit -> apply 链路。
+- 不允许 AI 直接修改固定结构。
+- 不开启 thinking mode，默认仍为 thinking_mode=disabled。
+- 只提高输出预算，减少 JSON 截断与 parse failed。
+
+当前建议
+- DynamicStructure proposal 默认继续使用 medium。
+- EmergentPresence proposal 默认继续使用 high。
+- brief/full observer 仍由 prompt 限制字数，不依赖 token 上限控制文风长度。

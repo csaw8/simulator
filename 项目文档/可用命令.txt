@@ -16,6 +16,9 @@ DeepSeek 官方 API Key 持久配置：
 - `api_key_env: DEEPSEEK_API_KEY`
 - `base_url: https://api.deepseek.com`
 - `model: deepseek-v4-pro`
+- `low_cost_max_tokens: 256`
+- `medium_cost_max_tokens: 512`
+- `high_cost_max_tokens: 1024`
 
 二、基础命令
 

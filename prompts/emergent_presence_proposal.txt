@@ -59,6 +59,8 @@ Allowed relation_type values:
 Rules:
 - Do not modify fixed world objects directly.
 - Do not invent refs.
+- Every proposal object must include action and presence_type as the first two fields.
+- presence_type is mandatory and must be one of the allowed presence_type values.
 - home_region_ref and current_region_refs must use exact ids from allowed_refs.regions.
 - linked_relic_refs must use exact ids from allowed_refs.relics.
 - linked_dynamic_refs must use exact ids from allowed_refs.dynamic_structures.
@@ -75,3 +77,30 @@ Rules:
 - If proposal_guidance starts with medium_signal, proposal is optional and should be concrete.
 - Prefer one compact proposal over multiple partial proposals.
 - Output JSON only.
+
+Minimal proposal schema:
+{
+  "proposals": [
+    {
+      "action": "create",
+      "presence_type": "spore_bloom",
+      "name": "short grounded name",
+      "summary": "one short grounded sentence",
+      "home_region_ref": "region_id_from_allowed_refs",
+      "current_region_refs": ["region_id_from_allowed_refs"],
+      "linked_relic_refs": [],
+      "linked_dynamic_refs": [],
+      "linked_faction_refs": [],
+      "lifecycle_stage": "forming",
+      "population_scale": "trace",
+      "adaptation_level": "low",
+      "mobility": "local",
+      "pressure": "medium",
+      "behavior_tags": [],
+      "sensory_tags": [],
+      "ecological_tags": [],
+      "visibility": "rumored",
+      "relation_type": "nests_in"
+    }
+  ]
+}

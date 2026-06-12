@@ -49,6 +49,11 @@ class AITierTests(unittest.TestCase):
         self.assertEqual(settings.max_tokens, DEFAULT_AI_CONFIG["low_cost_max_tokens"])
         self.assertEqual(settings.thinking_budget, DEFAULT_AI_CONFIG["low_cost_thinking_budget"])
 
+    def test_deepseek_proposal_tiers_allow_complete_json_outputs(self) -> None:
+        self.assertGreaterEqual(DEFAULT_AI_CONFIG["low_cost_max_tokens"], 256)
+        self.assertGreaterEqual(DEFAULT_AI_CONFIG["medium_cost_max_tokens"], 512)
+        self.assertGreaterEqual(DEFAULT_AI_CONFIG["high_cost_max_tokens"], 1024)
+
     def test_chronicler_uses_configured_tier(self) -> None:
         settings = resolve_chronicler_tier(DEFAULT_AI_CONFIG)
         self.assertEqual(settings.tier, DEFAULT_AI_CONFIG["chronicler_cost_tier"])
