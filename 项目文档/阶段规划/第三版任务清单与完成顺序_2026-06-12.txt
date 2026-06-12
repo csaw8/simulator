@@ -36,6 +36,7 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 快照保存 | 已完成 | dynamic structures 与 audits 均可保存读取 |
 | live prompt 修复 | 已完成 | 修复 JSON 截断和“候选提案不是权威事实”的提示冲突 |
 | V3-A 到 V3-G | 已完成 | DynamicStructure 安全落库、观察融合、生命周期、去重、目标选择、AI 上下文、长跑验收均已有记录 |
+| V3-H 方向确认 | 已完成 | 用户确认项目走模拟/叙事平衡，第一批 EmergentPresence 走异常生命/生态，AI 创造性后续放宽但强审计 |
 
 三、第三版总目标
 
@@ -132,6 +133,14 @@ EmergentPresence v1
 九、推荐下一条任务提示
 
 继续第三版 V3-H：输出半独立实体设计。DynamicStructure 前半闭环已经完成，下一步应进入 EmergentPresence / AdaptiveLifeform 的设计边界，不再继续给 DynamicStructure 堆小修。
+
+V3-H 已形成设计文档：
+
+```text
+项目文档/阶段规划/V3-H半独立实体设计_2026-06-12.txt
+```
+
+后续实际开发应进入 V3-I：`EmergentPresence v1`。
 
 十、第四阶段预留：风格解耦与题材配置
 

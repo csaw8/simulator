@@ -1,0 +1,253 @@
+Terrarium Project V3-H 半独立实体设计
+
+日期：2026-06-12
+
+一、用户方向确认
+
+| 问题 | 用户选择 | 对设计的影响 |
+|---|---|---|
+| 项目最终形态 | 世界模拟器与叙事生成器平衡 | 数据结构必须真实参与世界循环，输出层不能只是写故事 |
+| 第一批半独立实体 | 异常生命 / 异常生态 | V3-I 聚焦生态型、群体型、迁移型存在，不先做神级智能或协议人格 |
+| AI 创造性边界 | 更自由但强审计 | AI 可提出较有创造性的生态结构，但必须走 proposal / validator / audit / apply |
+| player 视角 | 强信息差 | player 输出只显示可见迹象，不暴露内部 ID、完整状态机和真实扩散逻辑 |
+| AI 初始标签自由新增 | 第五阶段后半或第六阶段 | V3-H/V3-I 不允许 AI 自由新增 descriptor 标签并直写 |
+
+二、阶段定位
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-H |
+| 名称 | 半独立实体设计 |
+| 目标 | 为 V3-I 的 `EmergentPresence` v1 提供明确边界、字段、生命周期、影响通道和测试门槛 |
+| 不做 | 本批次不落库、不写代码、不新增运行系统 |
+| 推荐第一版方向 | 异常生态 / 半生命群体 / 迁移性存在 |
+
+V3-H 的核心判断：
+
+```text
+Relic / Presence 当前代表“异常焦点”。
+DynamicStructure 当前代表“AI 提出的局部结构线索”。
+EmergentPresence 应代表“能持续演化、迁移、繁殖、压迫环境的半独立异常生态实体”。
+```
+
+三、为什么不能只复用 Relic
+
+| Relic 当前职责 | 不适合承载 EmergentPresence 的原因 |
+|---|---|
+| 表示异常对象、巨构、档案、协议、异常生命焦点 | 更像“核心对象”或“异常锚点”，不是可扩散生态 |
+| 通过 `presence_dynamics` 产生事件 | 事件逻辑已经较重，继续加会让 relic 变成万能异常系统 |
+| 与 project / holder / region 强绑定 | 半独立生态需要多区域、群体规模、栖息地、扩散边界 |
+| 名称和类型与当前科幻异常文风绑定较深 | V3-H 应为第四阶段风格解耦保留通用结构 |
+
+正确关系：
+
+```text
+Relic 可以是 EmergentPresence 的起源、锚点、诱因或宿主。
+EmergentPresence 不应该只是 Relic 的一个新字段。
+```
+
+四、与 DynamicStructure 的区别
+
+| 项 | DynamicStructure | EmergentPresence |
+|---|---|---|
+| 来源 | AI proposal 生成的动态线索/局部结构 | 固定数据层 + 可由规则或 AI proposal 创建 |
+| 稳定性 | 可以 cooling / archived | 应能长期活跃、迁移、休眠、分裂、收束 |
+| 行为能力 | 主要通过事件、关系、压力线体现影响 | 需要有自身状态推进逻辑 |
+| 第一版类型 | local_group / incident_site / rumor_network / proxy_cell / anomaly_trace | spore_bloom / migrant_swarm / mycelial_mat / feral_cluster / signal_biota |
+| 信息差 | player 只看线索 | player 只看生态迹象，不看完整生态参数 |
+| 写入边界 | AI 可 create/update 受限结构 | V3-I 初期建议规则创建为主，AI proposal 小规模试点 |
+
+五、推荐数据结构
+
+```python
+@dataclass(slots=True)
+class EmergentPresence:
+    presence_id: str
+    presence_type: str
+    name: str
+    origin: str
+    status: str = "active"
+    visibility: str = "visible"
+    home_region_ref: str | None = None
+    current_region_refs: list[str] = field(default_factory=list)
+    linked_relic_refs: list[str] = field(default_factory=list)
+    linked_dynamic_refs: list[str] = field(default_factory=list)
+    linked_faction_refs: list[str] = field(default_factory=list)
+    lifecycle_stage: str = "forming"
+    population_scale: str = "trace"
+    adaptation_level: str = "low"
+    mobility: str = "local"
+    pressure: str = "medium"
+    behavior_tags: list[str] = field(default_factory=list)
+    sensory_tags: list[str] = field(default_factory=list)
+    ecological_tags: list[str] = field(default_factory=list)
+    created_tick: int = 0
+    updated_tick: int = 0
+    source_event_refs: list[str] = field(default_factory=list)
+    influence_refs: list[str] = field(default_factory=list)
+```
+
+六、字段边界
+
+| 字段 | 允许值建议 | 说明 |
+|---|---|---|
+| `presence_type` | `spore_bloom / migrant_swarm / mycelial_mat / feral_cluster / signal_biota` | 第一版只保留 5 类，避免宽度失控 |
+| `status` | `active / contained / dormant / cooling / archived` | 生命周期状态 |
+| `visibility` | `public / visible / rumored / hidden` | 复用现有可见性规则 |
+| `lifecycle_stage` | `forming / spreading / nesting / adapting / retreating / dormant` | 生态阶段 |
+| `population_scale` | `trace / cluster / colony / swarm / regional` | 规模，不用具体数量 |
+| `adaptation_level` | `low / medium / high` | 适应环境与规避封控能力 |
+| `mobility` | `fixed / local / migrating / distributed` | 迁移能力 |
+| `pressure` | `low / medium / high` | 对世界循环的影响强度 |
+
+七、第一版类型
+
+| 类型 | 中文理解 | 行为倾向 | 典型影响 |
+|---|---|---|---|
+| `spore_bloom` | 孢子潮 / 扩散性生物迹象 | 成片扩散、污染空气或设施 | 提升 biosecurity / containment 压力 |
+| `migrant_swarm` | 迁移兽群 / 群体迁徙 | 跨区域移动，冲击补给和边境 | 触发 supply / security / migration 事件 |
+| `mycelial_mat` | 菌毯 / 基质生态 | 固着生长，侵入基础设施 | 扭曲 region node / project / relic 接口 |
+| `feral_cluster` | 野化群落 | 占据废弃地带，形成局部领地 | 影响 region 安全与居民传闻 |
+| `signal_biota` | 信号生物群 | 通过信号、光、噪声表现生命迹象 | 影响 observer、档案、协议、信息稳定 |
+
+八、创建来源
+
+| 来源 | V3-I 建议 |
+|---|---|
+| 规则触发 | 主路径。由异常生命 relic、biosecurity 事件、migration 事件、dynamic anomaly_trace 触发 |
+| AI proposal | 小规模试点。必须受限类型、受限 refs、受限标签 |
+| 世界初始化 | 暂不默认初始化。可在后续配置中允许少量 seed 生成 |
+| 半开放模板 | 不进入 V3，放第五阶段 |
+
+九、影响通道
+
+EmergentPresence 不能直接修改固定对象字段。所有影响必须走：
+
+| 通道 | 用途 |
+|---|---|
+| Event | 记录扩散、迁移、筑巢、封控、休眠等动作 |
+| Relation | 建立 `infests / pressures / avoids / nests_in / attracted_to / disrupts` 等关系 |
+| PressureThread | 将生态压力挂到 region / relic / project / supply / node / faction |
+| Summary | player/truth 可观察，但 player 不暴露内部状态机 |
+| AI context | 进入 intent / observer 上下文，让角色和观察层感知生态压力 |
+
+十、生命周期
+
+| 阶段 | 触发 | 行为 |
+|---|---|---|
+| `forming` | 新创建 | 只产生弱线索，压力低 |
+| `spreading` | 连续事件或高压力地区 | 扩展 region refs，制造压力线 |
+| `nesting` | 在同一区域长期停留 | 加深 region/node/relic 关系 |
+| `adapting` | 遭遇封控或高安全压力 | 提升 adaptation，改变行为标签 |
+| `retreating` | 压力下降或封控成功 | 降低影响，进入 cooling |
+| `dormant` | 长期无事件 | 从观察面弱化，但不删除 |
+| `archived` | 长期无影响或被完全收束 | 不再参与目标选择和常规摘要 |
+
+十一、proposal schema 草案
+
+```json
+{
+  "proposals": [
+    {
+      "action": "create",
+      "presence_type": "spore_bloom",
+      "name": "Veil Bloom-01",
+      "summary": "A spore-like ecological pressure is forming around a containment edge.",
+      "home_region_ref": "region_04",
+      "current_region_refs": ["region_04"],
+      "linked_relic_refs": ["relic_02"],
+      "linked_dynamic_refs": ["dyn_0001"],
+      "lifecycle_stage": "forming",
+      "population_scale": "trace",
+      "adaptation_level": "low",
+      "mobility": "local",
+      "pressure": "medium",
+      "behavior_tags": ["territorial", "reactive"],
+      "sensory_tags": ["low_hum", "spore_haze"],
+      "ecological_tags": ["biosecurity_risk"],
+      "visibility": "rumored",
+      "relation_type": "nests_in"
+    }
+  ]
+}
+```
+
+十二、validator 要求
+
+| 校验项 | 规则 |
+|---|---|
+| 批量数量 | 每批最多 2 条，V3-I 初期建议 1 条 |
+| 类型 | 必须在 5 类白名单内 |
+| refs | 至少有一个 `home_region_ref` 或 `current_region_refs` |
+| linked refs | 只能引用已存在 region / relic / dynamic / faction / project / supply / node |
+| 标签 | 每组最多 6 个，先用固定池，不允许 AI 自由新增 |
+| summary | 长度限制，不能写成全知真相 |
+| visibility | 必须通过现有 visibility normalize |
+| update | 只能更新已有 `presence_id` |
+| duplicate | 同类型、同 home region、重叠 linked relic/dynamic 时转 update 或 reject |
+
+十三、player / truth 输出边界
+
+| 视角 | 显示 |
+|---|---|
+| truth | `EmergentPresence <name> (<presence_id>)`，显示类型、状态、阶段、refs、pressure |
+| player | `生态迹象“...”` 或 `异常生态迹象“...”`，不显示 `ep_0001` |
+| player 摘要 | 说“外界能看见扩散/迁移/筑巢迹象”，不说完整生命周期参数 |
+| event player view | 使用模糊线索，不暴露 hidden refs |
+
+十四、与现有异常生命 relic 的关系
+
+| 关系 | 说明 |
+|---|---|
+| relic 是锚点 | anomalous_lifeform relic 可以触发 EmergentPresence |
+| relic 不是生态本体 | 不把扩散群体塞回 relic 字段 |
+| project/supply/node 可被牵连 | 通过 relation 和 pressure thread 表达 |
+| presence_dynamics 可提供触发事件 | 但 V3-I 不重写整个 presence_dynamics |
+
+十五、V3-I 最小实现建议
+
+| 顺序 | 任务 | 验收 |
+|---:|---|---|
+| 1 | 新增 `src/world/emergent_presence.py` | dataclass + 白名单常量 |
+| 2 | `WorldState.emergent_presences` | 快照 save/load 支持 |
+| 3 | proposal / validator / apply | dry-run 和 apply 都可审计 |
+| 4 | event / relation / pressure bridge | 不直接改固定对象字段 |
+| 5 | summary | `watch emergent <id> full player/truth` |
+| 6 | 相关对象摘要融合 | region / relic / project / supply / node 能显示生态牵连 |
+| 7 | AI context | intent / observer 能看到相关生态压力 |
+| 8 | 生命周期 | active / cooling / archived 最小机制 |
+| 9 | 测试 | validator、snapshot、player 防泄漏、去重、长跑 |
+
+十六、不做事项
+
+| 不做 | 原因 |
+|---|---|
+| 不做神级智能 | 过早引入强主体会压过文明/组织/角色系统 |
+| 不让 AI 自由新增 presence_type | V3-I 必须白名单 |
+| 不直接修改 region.security 等固定字段 | 继续坚持 Event / Relation / PressureThread 桥接 |
+| 不大规模自动生成 | 初期只手动触发或高信号目标触发 |
+| 不做半开放 schema | 留给第五阶段 |
+| 不做风格解耦 | 留给第四阶段 |
+
+十七、结论
+
+V3-H 建议把 `EmergentPresence` 定义为：
+
+```text
+与 Relic 并列、与 DynamicStructure 并列的半独立异常生态实体。
+它可以由异常生命、事件或动态结构触发。
+它有自己的生命周期、规模、迁移与适应状态。
+它不能直接污染固定对象，只能通过事件、关系、压力线和观察层影响世界。
+```
+
+V3-I 可以开始实现，但第一版应保持窄边界：
+
+```text
+5 类 presence_type
+最多 1-2 条 proposal
+固定标签池
+强 validator
+强 audit
+player/truth 信息差
+复制 DynamicStructure 的测试门槛
+```
