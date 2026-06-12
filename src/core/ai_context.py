@@ -104,6 +104,46 @@ def dynamic_structure_context_signal(context: dict[str, object]) -> int:
     )
 
 
+def related_dynamic_structure_context_lines(
+    world: WorldState,
+    refs: list[str],
+    *,
+    view: str = "truth",
+    limit: int = 4,
+) -> list[str]:
+    """Return compact, read-only dynamic-structure lines for AI context prompts."""
+    ref_set = {ref for ref in refs if ref}
+    if not ref_set:
+        return ["- None"]
+    player_view = view == "player"
+    structures = [
+        structure
+        for structure in world.dynamic_structures.values()
+        if structure.status != "archived"
+        and ref_set.intersection(structure.scope_refs + structure.linked_refs + structure.influence_refs)
+    ]
+    if player_view:
+        structures = [
+            structure
+            for structure in structures
+            if structure.visibility in {"public", "visible", "rumored"}
+        ]
+    structures.sort(
+        key=lambda structure: (
+            _pressure_rank(structure.pressure),
+            structure.updated_tick,
+            structure.structure_id,
+        ),
+        reverse=True,
+    )
+    if not structures:
+        return ["- None"]
+    return [
+        _dynamic_structure_context_line(world, structure, player_view=player_view)
+        for structure in structures[: max(1, limit)]
+    ]
+
+
 def _dynamic_structure_context_signal_from_parts(
     *,
     recent_events: list[dict[str, object]],
@@ -114,6 +154,52 @@ def _dynamic_structure_context_signal_from_parts(
     score += min(len(pressure_threads), 3)
     score += min(len(relations), 2)
     return score
+
+
+def _dynamic_structure_context_line(world: WorldState, structure, *, player_view: bool) -> str:
+    type_label = _dynamic_structure_type_label(structure.structure_type)
+    pressure_label = _pressure_label(structure.pressure)
+    ref_labels = [
+        format_entity_ref(world, ref)
+        for ref in (structure.scope_refs + structure.linked_refs)[:4]
+    ]
+    if player_view:
+        return (
+            f"- {type_label}; pressure={pressure_label}; "
+            f"visible_refs={len(structure.scope_refs + structure.linked_refs)}; "
+            f"clue={_compact_text(structure.summary, 80)}"
+        )
+    return (
+        f"- {structure.name} ({structure.structure_id}); type={structure.structure_type}; "
+        f"status={structure.status}; pressure={structure.pressure}; "
+        f"refs={', '.join(ref_labels) or 'None'}; summary={_compact_text(structure.summary, 120)}"
+    )
+
+
+def _dynamic_structure_type_label(structure_type: str) -> str:
+    mapping = {
+        "local_group": "local group",
+        "incident_site": "incident site",
+        "rumor_network": "rumor network",
+        "proxy_cell": "proxy cell",
+        "anomaly_trace": "anomaly trace",
+    }
+    return mapping.get(structure_type, structure_type.replace("_", " "))
+
+
+def _pressure_label(pressure: str) -> str:
+    return {"high": "high", "medium": "medium", "low": "low"}.get(pressure, "unknown")
+
+
+def _pressure_rank(pressure: str) -> int:
+    return {"high": 3, "medium": 2, "low": 1}.get(pressure, 0)
+
+
+def _compact_text(text: str, limit: int) -> str:
+    compact = " ".join(str(text).split())
+    if len(compact) <= limit:
+        return compact
+    return compact[:limit].rstrip() + "..."
 
 
 def _proposal_guidance(signal_score: int) -> str:

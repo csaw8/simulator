@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.agents.knowledge import CharacterKnowledgeSnapshot
+from src.core.ai_context import related_dynamic_structure_context_lines
 from src.events.visibility_rules import format_event_summary_for_view
 from src.world.character import Character
 from src.world.state import WorldState
@@ -58,6 +59,12 @@ def build_intent_messages(
     ][-3:]
     relic_event_lines = (
         [f"- {item}" for item in relevant_relic_events] if relevant_relic_events else ["- None"]
+    )
+    dynamic_structure_lines = related_dynamic_structure_context_lines(
+        world,
+        [character.current_region_id] + list(character.affiliation),
+        view="player",
+        limit=4,
     )
     has_relic_flashpoint = any(item != "- None" for item in relic_event_lines)
     if has_relic_flashpoint:
@@ -120,6 +127,8 @@ def build_intent_messages(
             *(public_events or ["- None"]),
             "Recent relic flashpoints:",
             *relic_event_lines,
+            "Related dynamic structures (read-only context; do not target these ids):",
+            *dynamic_structure_lines,
             *intent_guidance_lines,
             "",
             task_prompt,

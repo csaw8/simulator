@@ -8,6 +8,7 @@ import re
 
 from src.agents.llm_client import LLMClientError, build_siliconflow_client
 from src.agents.knowledge import build_character_knowledge_snapshot
+from src.core.ai_context import related_dynamic_structure_context_lines
 from src.core.ai_policy import evaluate_observer_llm_policy
 from src.core.ai_tiers import resolve_observer_tier
 from src.narrative.visibility import is_player_view
@@ -71,6 +72,8 @@ def observe_region_with_ai(
             f"Story hooks: {', '.join(region.local_story_hooks) or 'None'}",
             "Recent events:",
             *([f"- {item}" for item in recent_events] if recent_events else ["- None"]),
+            "Related dynamic structures:",
+            *related_dynamic_structure_context_lines(world, [region_id], view=view, limit=4),
         ],
         mode=mode,
         voice_instruction=_region_observer_voice(world, region_id),
@@ -135,6 +138,13 @@ def observe_character_with_ai(
             *([f"- {item}" for item in rumored_events] if rumored_events else ["- None"]),
             "Public events:",
             *([f"- {item}" for item in public_events] if public_events else ["- None"]),
+            "Related dynamic structures:",
+            *related_dynamic_structure_context_lines(
+                world,
+                [character.current_region_id] + list(character.affiliation),
+                view=view,
+                limit=4,
+            ),
         ],
         mode=mode,
         voice_instruction=_character_observer_voice(character),
@@ -186,6 +196,13 @@ def observe_civilization_with_ai(
             f"Summary tags: {', '.join(civilization.summary_tags) or 'None'}",
             "Recent events:",
             *([f"- {item}" for item in recent_events] if recent_events else ["- None"]),
+            "Related dynamic structures:",
+            *related_dynamic_structure_context_lines(
+                world,
+                civilization.key_regions[:6] + civilization.key_factions[:6],
+                view=view,
+                limit=4,
+            ),
         ],
         mode=mode,
         voice_instruction=_civilization_observer_voice(civilization),
@@ -242,6 +259,21 @@ def observe_relic_with_ai(
             f"Story tags: {', '.join(relic.story_tags) or 'None'}",
             "Recent events:",
             *([f"- {item}" for item in recent_events] if recent_events else ["- None"]),
+            "Related dynamic structures:",
+            *related_dynamic_structure_context_lines(
+                world,
+                [
+                    relic.relic_id,
+                    relic.current_region_id,
+                    relic.holder_ref or "",
+                    relic.sponsor_ref or "",
+                    relic.contractor_ref or "",
+                    relic.financier_ref or "",
+                    relic.opposition_ref or "",
+                ],
+                view=view,
+                limit=4,
+            ),
         ],
         mode=mode,
         voice_instruction=_relic_observer_voice(relic),
@@ -303,6 +335,13 @@ def observe_faction_with_ai(
             f"Allied factions: {'Unknown to outside observers' if player_view else (', '.join(faction.allied_factions) or 'None')}",
             "Recent events:",
             *([f"- {item}" for item in recent_events] if recent_events else ["- None"]),
+            "Related dynamic structures:",
+            *related_dynamic_structure_context_lines(
+                world,
+                [faction.faction_id] + faction.controlled_regions[:6],
+                view=view,
+                limit=4,
+            ),
         ],
         mode=mode,
         voice_instruction=_faction_observer_voice(faction),

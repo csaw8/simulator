@@ -1,0 +1,66 @@
+Terrarium Project V3-F 动态结构进入 AI 上下文记录
+
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-F |
+| 目标 | 让角色 intent 和 observer AI 能感知相关 DynamicStructure |
+| 原则 | 只读上下文，不开放写入，不允许 AI 直接修改固定对象字段 |
+| 边界 | `archived` 动态结构不进入活跃上下文 |
+
+二、接入范围
+
+| AI 链路 | 状态 | 说明 |
+|---|---|---|
+| character intent prompt | 已接入 | 角色当前地区与 affiliation 相关动态结构进入 prompt |
+| region observer | 已接入 | region 相关动态结构进入 observer prompt |
+| character observer | 已接入 | 角色当前地区与 affiliation 相关动态结构进入 observer prompt |
+| civilization observer | 已接入 | key regions / key factions 相关动态结构进入 observer prompt |
+| relic observer | 已接入 | relic、所在地区、持有/赞助/施工/融资/反对方相关动态结构进入 observer prompt |
+| faction observer | 已接入 | faction 与 controlled regions 相关动态结构进入 observer prompt |
+| project/supply/node observer | 暂无独立 AI observer | 目前只有摘要层接入，后续如增加 AI observer 再复用同一 helper |
+
+三、上下文规则
+
+| 视角 | 输出 |
+|---|---|
+| truth | 可包含结构名、`structure_id`、类型、状态、压力、refs 和摘要 |
+| player | 不包含 `dyn_`，不直出结构名，只给类型、压力、可见 refs 数量和线索摘要 |
+
+通用 helper：
+
+| 文件 | 函数 |
+|---|---|
+| `src/core/ai_context.py` | `related_dynamic_structure_context_lines(...)` |
+
+四、实现范围
+
+| 文件 | 内容 |
+|---|---|
+| `src/core/ai_context.py` | 新增动态结构只读上下文格式化 helper |
+| `src/agents/prompt_builder.py` | character intent prompt 增加 `Related dynamic structures` 块 |
+| `src/narrative/observer.py` | region / character / civilization / relic / faction observer prompt 增加动态结构上下文 |
+| `tests/test_dynamic_structure_contexts.py` | 增加 helper、intent prompt、observer prompt 测试 |
+
+五、验证
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_dynamic_structure_contexts` | 4 tests OK |
+| `python -m unittest discover -s tests` | 92 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+六、结论
+
+| 项 | 结论 |
+|---|---|
+| V3-F 是否完成 | 完成 |
+| DynamicStructure 是否进入 AI 感知层 | 是 |
+| 是否开放 AI 直接写固定结构 | 否 |
+| player 上下文是否防内部 ID 泄漏 | 已测试 |
+| 下一步 | V3-G：apply 后长跑验收 |
+
+V3-F 完成后，DynamicStructure 已经不只是可观察结构，也开始影响 AI 的局内判断上下文。下一步应做长跑验收，确认 apply / lifecycle / dedupe / context 融合不会在多 tick 推进中破坏世界循环。
