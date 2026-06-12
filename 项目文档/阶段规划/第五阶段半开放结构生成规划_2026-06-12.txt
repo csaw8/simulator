@@ -12,6 +12,7 @@ Terrarium Project 第五阶段半开放结构生成规划
 | 前置阶段 | 第三阶段 AI 动态结构闭环、第四阶段风格解耦与题材配置 |
 | 不做事项 | 不让 AI 直接新增 Python dataclass，不让 AI 直接写 WorldState 新字段，不让 AI 绕过 validator / audit / approval |
 | 隐标签前置 | 第三阶段 V3-M 规划 DescriptorProfile，第四阶段集中 descriptor 词表 |
+| 自由新增隐标签 | 第五阶段后半或更后阶段才考虑，且必须走 descriptor proposal / validator / approval / audit |
 
 第五阶段解决的问题不是“让 AI 完全自由”，而是让 AI 的创造力进入一个可验证、可回滚、可审计的结构模板层。
 
@@ -104,6 +105,7 @@ class TemplateInstance:
 | 6 | V5-F | AI 基于模板生成实例 | AI 不再直接创造任意 schema，只填充 approved template 实例 | 实例通过 validator 并进入观察层 |
 | 7 | V5-G | 模板版本、迁移和回滚 | 支持模板冻结、退休、版本升级 | 旧实例仍可读取，新实例使用新版本 |
 | 8 | V5-H | 长跑污染防护验收 | 验证模板数量、实例数量、审计数量长期可控 | 100-300 tick 抽样稳定，全量测试通过 |
+| 9 | V5-I 或更后 | AI 自由新增 descriptor 标签试点 | AI 可提议新外观/功能/性格/感官标签，但不能直接落库 | 新标签必须通过 descriptor proposal、冲突检查、人工/规则审批、版本登记 |
 
 六、必须禁止的能力
 
@@ -114,6 +116,7 @@ class TemplateInstance:
 | AI 直接修改固定对象字段 | 会污染第一、第二阶段固定模型 |
 | AI 自由定义无限字段 | 会导致 summary、查询、存档不可控 |
 | AI 自由定义无限隐标签 | 会让外观、功能、性格等 descriptor 空间污染，后续难查询和迁移 |
+| AI 在初始化阶段直接自由新增标签并落库 | 会破坏 seed 可复现性和固定模型稳定性；只能在第五阶段后半或更后作为受控 proposal 试点 |
 | AI 绕过 approval 自动启用模板 | 会让 schema 质量不可控 |
 | AI 生成不可解释影响 | 所有影响必须走 Event / Relation / PressureThread |
 
@@ -149,7 +152,21 @@ class TemplateInstance:
 | 长跑稳定 | 模板与实例数量可控，重复与噪声可压制 |
 | 可回滚 | 模板可冻结或退休，旧实例仍可读取 |
 
-十、结论
+十、AI 自由新增 descriptor 标签的后置边界
+
+第五阶段可以为“AI 自由新增标签”预留试点，但它不应进入第五阶段前半的模板主线，更不应进入世界初始化直写路径。
+
+| 边界 | 要求 |
+|---|---|
+| 触发位置 | V5-I 或第五阶段之后 |
+| 数据形态 | `DescriptorTagProposal`，不是直接写入 `DescriptorLexicon` |
+| 审批状态 | pending / approved / rejected / retired |
+| 校验内容 | 标签 ID、显示名、适配对象、冲突组、题材边界、近义重复 |
+| 落库条件 | 只有 approved 标签进入 descriptor pool |
+| 初始化使用 | 初始化只能使用 approved descriptor pool；AI 不能在初始化时边生成边落库 |
+| 回滚方式 | 标签可 retired，旧对象保留历史值但新对象不再抽取 |
+
+十一、结论
 
 第五阶段应承接用户提出的“更自由的生成结构”方向，但必须保持结构自由度和系统可控性之间的边界。
 

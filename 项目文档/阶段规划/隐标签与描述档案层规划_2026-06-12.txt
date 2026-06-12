@@ -61,7 +61,7 @@ class DescriptorProfile:
 | 规则加权抽取 | 第三/第四阶段可做 | 根据对象类型、地区压力、世界风格调整权重 |
 | AI 候选组合 | 第四阶段后可试点 | AI 只从 approved descriptor pool 中组合标签 |
 | AI 权重建议 | 第四/第五阶段可做 | AI 根据 world profile 建议标签权重，不直接写任意字段 |
-| AI 自由新增标签 | 第五阶段后才考虑 | 必须走 template/proposal/approval，不进入固定初始化直写 |
+| AI 自由新增标签 | 第五阶段后半或更后阶段才考虑 | 必须走 descriptor proposal / validator / approval / audit，不进入固定初始化直写 |
 
 六、AI 参与世界初始化标签生成的边界
 
@@ -84,6 +84,7 @@ validator 检查数量、冲突、对象适配和题材边界
 |---|---|
 | AI 直接新增固定对象字段 | 会破坏固定模型稳定性 |
 | AI 输出不在词表内的任意标签并直接落库 | 会造成标签污染和查询不可控 |
+| AI 在世界初始化时自由新增标签并立刻落库 | 会破坏 seed 可复现性；初始化只能使用 approved descriptor pool |
 | 初始化阶段强依赖网络 AI | 会破坏离线可复现和测试稳定 |
 | AI 一次生成大段外观文本作为规则事实 | 文本难校验，后续难迁移 |
 | AI 绕过 audit | 无法追踪初始化差异来源 |
@@ -95,6 +96,7 @@ validator 检查数量、冲突、对象适配和题材边界
 | 第三阶段 V3-M | 只做设计、字段边界、固定池盘点和 AI 参与边界 |
 | 第四阶段 | 将 descriptor 词表纳入 `WorldStyleProfile / NarrativeLexicon`，实现默认 profile 下的标签池 |
 | 第五阶段 | 半开放结构模板必须声明 descriptor 字段约束，新模板不能无限扩展隐标签 |
+| 第五阶段后半或更后 | 可试点 `DescriptorTagProposal`，允许 AI 提议新标签，但必须先审批再进入 descriptor pool |
 
 八、最小落地建议
 
