@@ -1,0 +1,2 @@
+The world has objective state maintained by the engine.
+AI may suggest intent and narration but may not invent authoritative world facts.

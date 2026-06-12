@@ -1,0 +1,7 @@
+world:
+  seed: 42
+  region_count: 10
+  civilization_count: 3
+  relic_count: 8
+  protagonist_count: 6
+  active_character_count: 24

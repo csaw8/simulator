@@ -1,0 +1,24 @@
+继续 `D:\codex\Terrarium_Project` 这个项目。
+
+先读取：
+- `当前版本完成度与缺口清单.txt`
+- `下一阶段开发排期.txt`
+- `当前已实现功能说明.txt`
+- `重开会话交接摘要.txt`
+- `可用命令.txt`
+
+当前状态：
+- 固定结构第一版完成度约 93%
+- 整体项目完成度约 97%
+- 已完成一轮 AI 分层与 signal threshold 校准
+- 已完成一轮 player 视角去 ID 化和 AI 噪声静默
+
+下一步直接做：
+- player 视角对象命名和标题层的“系统味”清理
+- civ/faction/history 的 player 口吻收口
+- visibility clue 一致性抽查
+
+要求：
+- 不要新建重系统
+- 尽量沿 `summary / visibility / taxonomy` 增量实现
+- 随时考虑复杂度、成本和可读性

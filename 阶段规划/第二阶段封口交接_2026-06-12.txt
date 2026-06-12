@@ -1,0 +1,67 @@
+Terrarium Project 第二阶段封口交接
+
+日期：2026-06-12
+
+一、阶段结论
+
+| 项 | 结论 |
+|---|---|
+| 固定结构第一版 | 已完成 |
+| 第二阶段：AI 深接入前固定模型建设 | 已完成 |
+| 当前代码状态 | 可运行、可观察、可保存、可长跑抽样 |
+| 下一阶段 | AI 深接入前接口整理与单链路试点 |
+
+二、本轮封口完成内容
+
+| 模块 | 内容 |
+|---|---|
+| Event refs | `Event` 增加 `project_refs / supply_refs / node_refs` |
+| Engine 回填 | `all_events` 形成后统一推断并回填中层 refs |
+| Pressure threads | 局势线索覆盖 project / supply / node / relic |
+| 可见线索 | `PressureThread.public_clues` 保存 player 可见 clue |
+| 摘要层 | project / supply / node / relic full 摘要显示 `局势线索` 与 `最近可见` |
+| 限流 | dormant 过期删除；单 scope 最多保留 5 条 thread |
+| 测试 | refs 回填、thread 覆盖、可见线索、防泄漏、长跑限流均有测试 |
+
+三、验证结果
+
+| 验证 | 结果 |
+|---|---|
+| `python -m unittest tests.test_narrative_summaries` | 46 tests OK |
+| `python -m unittest discover -s tests` | 61 tests OK |
+| `python -m compileall src tests` | OK |
+| 30 tick 抽样 | 226 条 pressure threads，单 scope 最多 5 条 |
+| 100 tick 抽样 | 221 条 pressure threads，单 scope 最多 5 条 |
+
+四、100 tick 抽样结论
+
+| 指标 | 结果 |
+|---|---|
+| 事件数 | 约 1991 |
+| pressure threads | 约 221 |
+| 有 public clues 的 threads | 约 210 |
+| 单 scope thread 上限 | 5 |
+| player 摘要 | 能显示局势线索和最近可见，不泄漏内部 token |
+
+五、下一阶段建议
+
+| 顺序 | 任务 | 验收标准 |
+|---:|---|---|
+| 1 | AI 输入接口整理 | 明确 prompt 输入只来自稳定摘要层，不直接塞全量 world |
+| 2 | AI 输出契约整理 | 明确哪些字段允许 AI 写回，哪些只能作为文本观察 |
+| 3 | 单链路 AI 深接入试点 | 先选 protagonist intent 或 observer truth full 之一 |
+| 4 | 污染防护 | AI 失败、空返回、格式错、越权字段都不会破坏世界状态 |
+| 5 | 成本校准 | 继续沿现有 `ai_policy`，不新增另一套重规则 |
+
+六、当前不建议继续做的事
+
+| 不建议 | 原因 |
+|---|---|
+| 继续加固定模型深度 | 第二阶段已封口，收益开始下降 |
+| 同时打开多条 AI 写回链路 | 难定位污染来源 |
+| 大规模新增对象大类 | 应等 AI 接口边界稳定后再做半开放结构 |
+| 大拆 `summaries.py` | 文件确实偏大，但现在拆分收益低于 AI 接口整理 |
+
+七、推荐下一条任务提示
+
+开始第三阶段前置工作：梳理 AI 深接入接口。先不要大规模改世界结构，先列出并实现一条最小闭环：输入摘要构建、AI 输出契约、解析校验、失败回退、单链路写回测试。

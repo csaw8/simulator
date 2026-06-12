@@ -1,0 +1,609 @@
+Terrarium Project 当前已实现功能说明
+
+2026-06-12 封口补充
+
+| 类别 | 已实现 |
+|---|---|
+| 中层 refs | 事件现在可携带 `project_refs / supply_refs / node_refs`，engine 会在每步事件汇总后统一回填 |
+| 持续局势线索 | `pressure_threads` 会从事件主题和 refs 沉淀持续压力线，覆盖 region/civ/faction/relic/project/supply/node |
+| 可观察线索 | `PressureThread.public_clues` 会记录 player 可见事件线索，摘要层显示“最近可见” |
+| 摘要覆盖 | region/civ/faction/project/supply/node/relic 已能显示局势线索 |
+| 长跑治理 | dormant thread 会过期裁剪，每个 scope 最多保留 5 条高价值线索 |
+| 测试状态 | 当前全量测试 61 个通过，编译通过 |
+
+一、项目定位
+
+这是一个以“观察者视角”为核心的文字世界模拟器。
+当前版本的重点不是严格数值平衡，而是让世界在较少规则下持续演化，并生成可观察、可追踪、带有一定叙事感的事件流。
+
+当前模型属于“固定结构模型”：
+- 世界由文明、地区、派系、角色、异常存在五类核心对象组成
+- 世界按时间步推进
+- 宏观事件、组织事件、角色意图和观察文本分层生成
+- 玩家主要负责观察，而不是直接操控世界
+
+
+二、已实现的核心结构
+
+1. 世界对象
+
+当前世界包含以下对象：
+
+- Civilization：文明
+  - 拥有发展阶段、治理方式、轨迹、技术画像、信念画像
+  - 拥有战略姿态和战略惯性
+  - 可记录关键地区、关键派系、关键人物、关键异常存在
+
+- Region：地区
+  - 拥有繁荣、稀缺、安全、政治紧张、基础设施等状态
+  - 作为大部分事件的主要落点
+  - 可承载派系、角色和异常存在
+
+- Faction：派系/组织
+  - 拥有类型、影响力、凝聚力、教条标签
+  - 可控制地区、结盟、争权、争夺异常存在、介入工程项目
+  - 已有独立的组织行为风格与惯性
+
+- Character：角色
+  - 分为主角型活跃角色与普通活跃角色
+  - 拥有身份、能力、欲望、恐惧、主动性、行动模式
+  - 当前支持 AI/占位逻辑生成意图
+
+- Relic：异常存在
+  - 这里不只包括传统遗物，也包括非人物异常存在
+  - 当前已纳入：
+    - megastructure：巨构或大型工程奇观
+    - sealed_archive：封存档案/信息异常
+    - founding_protocol：协议/自治系统类异常
+    - anomalous_lifeform：异常生物
+    - relic_device：一般异常装置
+
+
+三、世界初始化与生成
+
+1. 随机世界生成
+
+系统可按默认配置自动生成初始世界，包含：
+- 多个地区
+- 多个文明
+- 每个文明下多个派系
+- 主角型角色与普通活跃角色
+- 多个异常存在
+
+2. 结构模板 structure_template
+
+每个世界生成时会同时生成一份结构模板，用来决定这个世界更容易朝什么方向发展。
+
+当前模板包含：
+- era_frame：时代框架
+- pressure_axes：主要压力轴
+- dominant_fronts：主要前线类型
+- organization_climates：组织生态气候
+- anomaly_bias：异常压力偏向
+- civ_path_biases：文明发展路径偏向
+- observer_lens：观察镜头
+
+这份模板已经不只是展示信息，而是会实际影响：
+- 文明初始战略姿态
+- 派系初始教条和初始风格
+- fallback 角色意图
+- 派系动作权重
+
+
+四、时间推进与事件生成
+
+1. 基本推进循环
+
+每次 step 时，当前顺序为：
+
+1. 推进宏观状态
+2. 推进异常存在/存在层压力
+3. 推进派系动作
+4. 计算可唤醒角色
+5. 生成角色意图
+6. 解析角色意图并生成结果事件
+7. 刷新文明记忆与姿态
+8. 刷新派系行为风格
+9. 生成本步历史摘要 chronicle
+
+2. 宏观事件
+
+当前宏观层会围绕地区和文明生成状态变化事件，例如：
+- 安全变化
+- 稀缺变化
+- 政治紧张变化
+- 文明合法性变化
+- 扩张压力变化
+
+3. 派系动作事件
+
+派系已具备独立动作，不依赖角色才能推动世界。
+
+当前已实现的派系动作包括：
+- infiltration：渗透
+- alliance：结盟
+- power_struggle：争权
+- resource_reallocation：资源调配
+- relic_contest：争夺异常存在
+- relic_control：控制异常存在
+- project_bid：争夺项目/工程执行权
+- budget_freeze：冻结预算
+- financing_withdrawal：抽离或重组融资
+- site_accident：借事故施压或扩大影响
+
+这些动作会直接改变：
+- 地区安全
+- 地区政治紧张
+- 地区繁荣/稀缺
+- 派系影响力/凝聚力
+- 异常存在控制权
+- 巨构工程阶段或现场局势
+- 关系网络
+
+4. 角色意图与结果事件
+
+角色推进目前分两种来源：
+- live AI：通过 SiliconFlow 调用模型
+- placeholder：本地占位逻辑
+
+当 AI 不可用时，系统会自动回退到 placeholder，不会中断模拟。
+
+
+五、角色层已实现能力
+
+1. 活跃角色机制
+
+当前支持主角型角色和普通活跃角色。
+主角型角色会更频繁被调度，普通活跃角色用于提供环境响应与局部扰动。
+
+2. 唤醒与预算
+
+系统已有预算控制与唤醒调度：
+- protagonist budget
+- active character budget
+- chronicler budget
+
+这用于控制每周有多少角色被真正调用，以及是否调用 AI。
+
+3. 角色意图类型
+
+当前角色意图已不只是泛化的“行动”，而是包含多种前线型目标，例如：
+- secure_relic_access
+- manage_unrest
+- expand_influence
+- broker_power_shift
+- secure_project_budget
+- redirect_project_financing
+- contest_project_contract
+- seal_migration_corridor
+- contain_relic_fallout
+- suppress_site_accident_fallout
+- seize_supply_leverage
+
+4. 角色前线主题
+
+角色已经有一层“前线主题”系统，用于判断他最近在追什么。
+
+当前可识别的主题包括：
+- biosecurity_hunter
+- project_operator
+- containment_stabilizer
+- political_leverage_runner
+- mixed_front_operator
+
+并支持以下附加信息：
+- frontier_theme
+- frontier_theme_strength
+- frontier_theme_shift
+- frontier_focus_ref
+- frontier_focus_type
+- frontier_focus_reason
+- frontier_focus_trace
+- frontier_history
+
+这意味着角色不再只是“当前做了一件事”，而是能形成持续追逐的前线方向。
+
+5. 角色观察热点
+
+`watch character full` 已可展示当前关注热点，包括：
+- 当前主要地区
+- 当前被哪个异常存在或前线吸引
+- 为什么被该对象吸引
+- 当前存在的竞争者与干扰者
+
+
+六、文明层已实现能力
+
+1. 文明战略姿态
+
+文明已有战略姿态系统，当前包括：
+- balanced_competition
+- megastructure_expansion
+- containment_first
+- stability_over_growth
+- opportunistic_extraction
+
+2. 文明姿态惯性
+
+文明姿态不是每步立刻变化，而是带有轻量惯性：
+- strategic_posture
+- strategic_posture_stability
+- strategic_posture_pending
+- strategic_posture_pending_hits
+
+3. 文明记忆与偏置追踪
+
+文明会记录近期战略记忆和偏置来源，当前支持：
+- strategic_memory
+- strategic_bias_trace
+- strategic_fronts
+- world_frame_pull
+
+因此 `watch civ full truth` 已不只是静态面板，而能看到文明近期为什么会朝某个方向用力。
+
+
+七、派系层已实现能力
+
+1. 派系长期行为风格
+
+派系当前已有独立的 operational_style，用于表示该组织长期更像怎样行动。
+
+当前风格包括：
+- discipline_network：偏渗透、争权、隐性控制
+- contract_predator：偏项目、预算、融资、工程卡口
+- containment_cadre：偏封控、接管、压制异常外溢
+- extraction_broker：偏资源调配、供给杠杆、物资控制
+- adaptive_network：偏灵活适应、本地机会主义
+
+2. 派系风格惯性
+
+派系风格已具备轻量路径依赖，而非每步重算覆盖。
+
+当前字段包括：
+- operational_style
+- operational_style_stability
+- operational_style_pending
+- operational_style_pending_hits
+- operational_style_memory
+- operational_style_trace
+
+当前状态语义：
+- forming：刚生成，尚未形成稳定痕迹
+- steady：偏中性稳定
+- locked：风格已锁定
+- contested：出现其他风格拉扯
+- redirected：风格已转向
+
+3. 派系风格影响范围
+
+派系风格当前会影响：
+- 派系动作权重
+- 派系观察输出
+- 派系近期行为解释
+- 新组织类型的初始教条与初始风格偏置
+
+4. 派系观察输出
+
+`watch faction full truth` 当前可查看：
+- 派系所属文明
+- 组织生态拉力
+- doctrine_tags
+- operational_style
+- operational_style_stability
+- operational_style_pending
+- operational_style_pending_hits
+- controlled_regions
+- key_characters
+- rival_factions
+- allied_factions
+- behavior_signature
+- project_fronts
+- supply_fronts
+- midlayer_changes
+- operational_style_trace
+- operational_style_memory
+- active_relations
+
+
+八、异常存在层已实现能力
+
+1. 异常存在分类
+
+系统已把“重要非人物异常存在”统一纳入同一层，而不是只保留传统遗物概念。
+
+当前重点支持：
+- 巨构/奇观类
+- 异常协议/自治系统类
+- 封存档案/信息异常类
+- 异常生物类
+- 异常装置类
+
+2. 巨构工程语义
+
+巨构当前不只代表古代遗迹，也可以代表当前科技水平下正在建造或整合中的大型工程。
+
+已支持的相关属性包括：
+- origin_mode
+  - legacy
+  - contemporary
+  - hybrid
+- construction_state
+  - planned
+  - foundation
+  - rising
+  - integration
+  - degraded
+  - retrofit
+  - operational
+  - reactivating
+
+3. 异常存在事件语义
+
+异常存在当前已能触发不同语义的事件，例如：
+- 巨构停摆/推进
+- 协议接管/破口
+- 档案压制/泄露
+- 异常生物封控/刺激扩散
+
+这意味着异常存在已经不只是“一个标签对象”，而是世界前线的重要来源。
+
+
+九、关系层已实现能力
+
+系统已有基础关系网络，并已开始回流为稳定摘要层。
+
+当前关系可以存在于以下对象之间：
+- 角色与角色
+- 角色与地区/异常存在
+- 派系与地区
+- 派系与派系
+- 派系与异常存在
+
+关系系统已用于表达：
+- controls
+- contesting
+- rival_to
+- allied_with
+- contracting
+- financing
+- obstructing
+- infiltrating
+- flashpoint_actor
+- supply_influence
+
+关系摘要同步现状：
+- 每步结束后，动态 relation 会回写 faction 的 allied_factions / rival_factions
+- 每步结束后，动态 relation 会回写 civilization 的 external_relations
+- 摘要层已按主导关系做归并，避免同一对派系同时被记为盟友和对手
+
+关系会被：
+- 派系动作写入
+- 观察命令读取
+- 热点竞争者分析使用
+- 派系/文明关系观察块聚合读取
+
+
+十、信息隔离与观察视角
+
+1. 双视角
+
+当前系统已明确区分：
+- truth view：上帝视角/系统真相
+- player view：玩家观察视角
+
+2. 信息遮蔽
+
+在 player view 下，很多内部字段不会直接暴露，例如：
+- 角色真实意图
+- 角色完整记忆
+- 文明战略姿态与待切换目标
+- 派系风格痕迹
+- 关系网络细节
+- 异常存在控制细节
+
+3. 事件可见性
+
+事件已具备基础可见性分层：
+- public
+- visible
+- rumored
+- covert
+
+同一批事件在 truth view 与 player view 下会以不同方式显示。
+
+4. 结构回退观察
+
+当 faction/civ 暂时没有直连 project/supply 结构时：
+- truth view 会从近期结构性事件投影出 project_fronts / supply_fronts / project_networks
+- player view 会显示“已能感到约 N 条压力线”的弱提示
+- midlayer_changes 会在无直连结构时使用事件投影回退，而不会简单空白
+
+
+十一、观察与输出能力
+
+1. 已实现命令
+
+当前主要命令包括：
+- status
+- frame [brief|full] [player|truth]
+- step [n] [player|truth]
+- events
+- watch region
+- watch character
+- watch civ
+- watch faction
+- watch relic
+- debug llm
+- reset
+- save
+
+2. watch 系列
+
+当前支持观察对象：
+- region
+- character
+- civ
+- faction
+- relic
+
+每类对象都有 brief / full 两种层级，并可切换 player / truth 视角。
+
+3. 事件流输出
+
+`step` 已支持边推进边输出本步结果摘要，包括：
+- 生成事件数量
+- 唤醒角色数量
+- 意图来源统计
+- 事件样本
+- 意图样本
+- chronicle 历史摘要
+- AI 调用错误信息
+
+4. 当前结构观察收口
+
+当前已对以下输出做过一轮收口：
+- midlayer_changes：按主题分组，并压缩重复
+- project_fronts / project_networks：支持前线簇压缩，减少账本感
+- civilization.relations：已显式展示 external_relations
+
+4. 历史摘要 chronicle
+
+每步可生成一段简短历史摘要。
+
+当前支持：
+- AI chronicler
+- fallback chronicler
+
+当 AI 不可用时，会自动用本地摘要逻辑生成中文历史段落。
+
+
+十二、AI 接入现状
+
+1. 当前接入方式
+
+系统已经支持通过 SiliconFlow 的兼容接口调用模型。
+配置中已支持 API key、模型名、超时等参数。
+
+2. 当前用途
+
+AI 当前主要用于：
+- 角色意图生成
+- region/character/civ/faction/relic 观察补全文本
+- chronicle 历史摘要
+
+3. 当前成本治理状态
+
+当前已完成第一轮轻量成本治理：
+- AI 调用已拆成 `low / medium / high` 三档
+- `intent / observer / chronicler` 已接入统一 cost tier
+- 已新增共享 AI 门槛层，不再只按是否开启功能决定是否调用
+- 角色意图与 chronicle 已开始按 signal score 判断是否值得消耗 AI
+- `observer` 默认策略已改为 `truth_only`
+  - `watch ... truth` 可直接触发 AI 观察
+  - `watch ... player` 默认不触发 AI 观察
+- 默认 signal threshold 已完成一轮校准：
+  - protagonist intent = `12`
+  - active intent = `9`
+  - observer brief = `6`
+  - observer full = `8`
+  - chronicle = `16`
+- 当前默认策略更偏向：只有高信号对象、高信号观察和高信号周摘要才值得调用 AI
+
+4. 当前 player 观察收口状态
+
+当前 player 视角已进一步压缩内部引用泄漏：
+- civilization 的 `key_regions / key_factions` 已改为数量或模糊描述
+- faction 的 `controlled_regions` 已改为数量或模糊描述
+- character 的 `affiliations` 已改为归属线索，而非直接输出内部组织 ID
+- player 视角不再显示 `observer_view_blocked` 一类内部 AI policy 噪声
+
+当前仍未完全解决的问题：
+- 标题行和对象名仍偏程序化命名
+- 某些 `player` 观察块虽然不再泄漏内部字段，但仍有较强系统面板感
+
+3. 回退策略
+
+当 AI 不可用、超时或解析失败时：
+- 角色意图会回退到 placeholder
+- 观察文本会返回错误信息而不中断系统
+- chronicle 会回退到 fallback 文本
+
+这保证了世界能持续运行，不会因单次模型调用失败而卡死。
+
+
+十三、存档与持久化
+
+当前支持世界快照保存与读取：
+- 默认快照路径为 data/world_snapshot.json
+- 可保存世界对象、事件流、关系、结构模板和当前 tick
+
+这意味着：
+- 世界可以断点继续
+- 新增字段只要进 dataclass，通常就能进入快照
+
+
+十四、当前设计特点
+
+1. 已具备的优点
+
+- 世界在无人观察时也能继续推进
+- 宏观层与局部层已有明确分工
+- 派系和文明已具备部分长期惯性
+- 玩家观察视角与系统真相已开始分离
+- 异常存在不再局限于“遗物”
+- 模块之间总体可扩展
+
+2. 当前仍然固定的部分
+
+以下结构目前仍是固定写死的：
+- 世界核心对象类别
+- 大部分事件类型
+- 大部分动作映射
+- 前线主题分类
+- 派系风格分类
+- 文明姿态分类
+
+也就是说，当前系统已经可扩展，但还不是“由 AI 自主定义结构”的模型。
+
+
+十五、当前边界与未完成项
+
+1. AI 网络环境
+
+本地代码已支持 SiliconFlow，但当前运行环境里仍可能出现网络拦截或超时。
+在这种情况下，系统会正常回退，但 AI 观察文本和 AI 意图不会生效。
+
+2. 小人物与小物品的按需生成
+
+目前世界核心对象主要在初始化时生成。
+“只有观察时才生成的不重要小人物/小物品”这一层还没有真正落地。
+
+3. 结构自由度
+
+当前属于固定模型增强版，还未进入“让 AI 动态决定结构类别和世界组织方式”的阶段。
+
+4. 当前最自然的继续方向
+
+当前最适合继续补的不是新大类对象，而是：
+- 关系层语义继续做厚
+- 组织层长期链条继续做厚
+- observer 文本风格差异继续增强
+- 清理 player 视角对象命名和标题层的系统味
+
+5. 成本控制
+
+预算和 fallback 已有，但更细的分层调用策略仍可以继续优化。
+
+
+十六、当前总体结论
+
+截至目前，系统已经具备一个可运行的文字世界模拟骨架，并完成了以下关键跨越：
+
+- 从静态对象列表，发展到可推进的世界循环
+- 从单纯数值变化，发展到事件流驱动
+- 从只有角色，发展到文明、派系、异常存在共同作用
+- 从单层观察，发展到 truth/player 双视角
+- 从短期动作，发展到文明姿态与派系风格的长期惯性
+
+当前最适合的定位是：
+“一个以宏观演化和局部观察为核心、已具备中等深度但仍保持可控复杂度的固定结构文本模拟器。”

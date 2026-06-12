@@ -1,0 +1,5 @@
+narrative:
+  world_style: realistic_future_tech
+  chronicler_tone: restrained_historian
+  summary_max_sentences: 3
+  observation_detail_level: medium

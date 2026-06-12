@@ -1,0 +1,169 @@
+Terrarium Project 事件 Taxonomy 与当前语义说明
+
+更新时间：2026-06-10
+适用范围：当前固定模型第一阶段收口后的事件语义层
+目标：说明当前 `src/events/taxonomy.py` 的作用、主题边界、接入范围与后续扩展方式
+
+
+一、为什么要引入 taxonomy
+
+在引入 taxonomy 之前，系统中很多逻辑都直接依赖：
+
+- `if "resource" in event.event_type`
+- `if "power_struggle" in event.event_type`
+- `if "budget" in event.event_type`
+
+这种做法的问题是：
+
+- 同一类事件在不同模块中可能被归入不同类别
+- 新事件一旦命名稍有变化，就可能无法被旧逻辑识别
+- `focus` 过滤、player 观察、前线判断、角色 placeholder 决策之间语义不一致
+
+taxonomy 的目的不是立刻重写所有事件生成器，而是先建立一层统一语义：
+
+- 先把“事件是什么类型的变化”统一解释出来
+- 再让过滤、展示、观察、部分行为推断共享这层解释
+
+
+二、当前 taxonomy 提供的能力
+
+| 能力 | 函数 | 作用 |
+|---|---|---|
+| 焦点归一 | `normalize_focus_theme()` | 把 `engineering -> project`、`resource -> supply`、`power -> politics` 等别名统一 |
+| 主题归类 | `event_theme_tags()` | 为事件打上稳定主题标签 |
+| 主家族归类 | `event_family()` | 给事件一个主要家族，便于展示和启发式判断 |
+| 焦点匹配 | `event_matches_focus()` | 统一 `events/watch ... focus=...` 的过滤语义 |
+
+
+三、当前主题集合
+
+当前主题集合不是“世界观终极分类”，而是“当前系统已经稳定使用的统一语义入口”。
+
+| 主题 | 含义 | 当前典型来源 |
+|---|---|---|
+| `project` | 项目、建造、预算、融资、合同、工程推进、事故 | `project_bid`、`budget`、`financing`、`megastructure_*` |
+| `supply` | 补给、资源、路由、改道、短缺、运输压力 | `resource_shift`、`civil_scarcity_shift`、`supply_*` |
+| `anomaly` | 异常存在、封存资料、协议系统、异常生命、异常前线 | `archive_*`、`protocol_*`、`lifeform_*` |
+| `politics` | 政治压强、合法性、争权、联盟、渗透引发的秩序变化 | `political_shift`、`power_struggle`、`legitimacy_*` |
+| `security` | 安保、封锁、封控、压制、风险外壳变化 | `security_shift`、`lockdown`、`suppression` |
+| `organization` | 派系或组织层面的主动动作 | `faction_*`、`alliance`、`infiltration` |
+| `macro` | 宏观状态变化层 | `*_shift`、文明级宏观压力变化 |
+| `character` | 角色层直接落地的动作 | `character_*` |
+| `region` | 地区层直接状态变化 | `region scope` |
+| `civilization` | 文明级直接变化 | `civilization scope` |
+| `fallout` | 余波链、后效链、次生事件 | `event_fallout` 相关 |
+
+
+四、当前 family 规则
+
+`family` 用于回答“这条事件最像哪一类主变化”，它不是多标签，而是单一主标签。
+
+当前优先顺序大致为：
+
+1. `macro`
+2. `project`
+3. `supply`
+4. `anomaly`
+5. `politics`
+6. `security`
+7. `organization`
+8. 兜底到 `scope`
+
+这意味着：
+
+- 一条异常生命导致的补给恐慌，可能 `family=supply`，但 `themes` 里仍保留 `anomaly`
+- 一条封存档案冲击合法性的事件，可能 `family=anomaly`，但 `themes` 里也有 `politics`
+
+这是有意设计：
+
+- `family` 用于决定“主叙事归属”
+- `themes` 用于保留“跨层影响”
+
+
+五、当前已接入 taxonomy 的模块
+
+| 模块 | 接入状态 | 说明 |
+|---|---|---|
+| `interfaces/commands.py` | 已接入 | `focus=` 过滤已改走 `event_matches_focus()` |
+| `interfaces/stream_view.py` | 已接入 | `full events` 已显示 `family/themes` |
+| `events/visibility_rules.py` | 已接入 | 可见性推断与 player-facing 摘要开始使用 taxonomy |
+| `narrative/summaries.py` | 已接入 | 前线、压力、关系竞争、部分结构解释已改走 taxonomy |
+| `narrative/ambient_people.py` | 已接入 | 环境人物生成的事件识别已部分改走 taxonomy |
+| `narrative/ambient_detail.py` | 已接入 | 环境细节和局部压力解释已部分改走 taxonomy |
+| `agents/fallback.py` | 已接入 | fallback visible event -> intent 的关键分支已收口 |
+| `agents/intent_generator.py` | 已接入 | placeholder frontline intent 的关键分支已收口 |
+| `core/engine.py` | 已接入 | 文明 posture 与派系 style 的关键推断已开始依赖 taxonomy |
+
+
+六、当前尚未完全接入的部分
+
+| 模块 | 当前状态 | 说明 |
+|---|---|---|
+| 各事件生成器 | 未显式标签化 | 生产端仍主要写 `event_type/cause_tags/result_tags`，taxonomy 在读取时推断 |
+| 零散观察 helper | 部分残留 | 仍有少量 `if "xxx" in event_type` 的历史判断 |
+| 深层角色历史解释 | 部分残留 | 少数历史文本仍直接看 `event_type` 片段 |
+| 规则解析器结果生成 | 未统一 | `resolver/presence_dynamics/faction_actions` 仍以事件名为主 |
+
+
+七、当前 taxonomy 的边界
+
+taxonomy 当前只承诺三件事：
+
+1. 给现有事件提供稳定的“读层语义”
+2. 让过滤、展示、观察、部分行为推断共享语义
+3. 为后续显式标签化铺路
+
+taxonomy 当前不承诺：
+
+1. 替代所有事件生成器内部规则
+2. 彻底取代 `event_type`
+3. 自动解决所有旧命名历史问题
+
+
+八、当前设计原则
+
+| 原则 | 说明 |
+|---|---|
+| 先统一读层 | 先让系统“看事件”的方式一致，再改“产事件”的方式 |
+| 不大改生产端 | 避免在固定模型仍收口时引发大面积回归 |
+| 保留跨层标签 | 一个事件可以同时是 `anomaly + politics`，不强行扁平化 |
+| family 与 themes 分离 | family 负责主叙事，themes 负责多层影响 |
+| 模糊但稳定 | 允许启发式推断，但要求不同模块尽量共享同一套推断 |
+
+
+九、当前最常见的语义模式
+
+| 事件模式 | 常见 family | 常见 themes |
+|---|---|---|
+| `resource_shift / civil_scarcity_shift` | `macro` 或 `supply` | `macro, supply` |
+| `faction_power_struggle / faction_infiltration` | `politics` 或 `organization` | `organization, politics` |
+| `archive_*` | `anomaly` | `anomaly, politics` |
+| `protocol_*` | `anomaly` | `anomaly, security` |
+| `lifeform_*` | `anomaly` 或 `supply` | `anomaly, supply` |
+| `megastructure_* / project_*` | `project` | `project` |
+| `character_supply_power_play` | `supply` | `character, supply, organization` |
+
+
+十、下一步推荐做法
+
+| 顺序 | 动作 | 原因 |
+|---|---|---|
+| 1 | 保持现有 taxonomy 规则不大动 | 当前已经接入多层，先稳住 |
+| 2 | 增量清理残留历史判断 | 成本低、收益稳定 |
+| 3 | 后续在事件生成器里显式补 `theme/family` | 那时 taxonomy 可从“推断层”升级为“规则层” |
+| 4 | 扩宽世界时优先复用现有主题 | 避免新类型一上来又各写一套语义 |
+
+
+十一、一句话结论
+
+当前 taxonomy 已经成为“固定模型第一阶段的统一事件语义层”。
+
+它还不是完整规则本体，但已经足够承担：
+
+- 过滤
+- 展示
+- 观察
+- 局部行为推断
+- 文明/派系姿态的部分解释统一
+
+后续继续扩宽世界时，应优先围绕这层语义工作，而不是重新回到到处写 `if "xxx" in event_type` 的旧方式。

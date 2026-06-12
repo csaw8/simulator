@@ -1,0 +1,186 @@
+Terrarium Project 重开会话交接摘要
+
+更新时间：2026-06-12
+用途：新开高权限 Codex 会话后，快速恢复上下文并继续开发
+
+最新封口状态：
+
+| 项 | 结论 |
+|---|---|
+| 固定结构第一版 | 100% 完成 |
+| 第二阶段：AI 深接入前固定模型建设 | 100% 完成 |
+| 当前推荐下一步 | 做 AI 深接入前接口整理与单链路试点 |
+
+最近一轮完成内容：
+
+| 文件/模块 | 内容 |
+|---|---|
+| `src/events/models.py` | `Event` 增加 `project_refs / supply_refs / node_refs` |
+| `src/core/engine.py` | 每步统一回填中层 refs；`pressure_threads` 覆盖 project/supply/node/relic；增加 dormant 裁剪与单 scope 上限 |
+| `src/world/pressure_thread.py` | 增加 `public_clues`，用于保存 player 可见线索 |
+| `src/narrative/summaries.py` | project/supply/node/relic full 摘要显示局势线索与“最近可见” |
+| `tests/test_narrative_summaries.py` | 增加 refs 回填、thread 覆盖、可见线索、长跑限流、防内部 token 泄漏测试 |
+
+最近验证：
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest discover -s tests` | 61 tests OK |
+| `python -m compileall src tests` | OK |
+| 100 tick 抽样 | `pressure_threads` 稳定约 221，单对象最多 5 条 |
+
+下一会话不要再继续扩固定模型深度，除非发现 bug。建议进入：
+
+| 顺序 | 任务 |
+|---:|---|
+| 1 | 梳理 AI 输入摘要：world frame、active events、pressure threads、relation fronts、character knowledge |
+| 2 | 梳理 AI 输出契约：intent、observer、chronicle 哪些字段允许写回世界 |
+| 3 | 选择一条链路做 AI 深接入试点，不要全局同时打开 |
+| 4 | 做失败回退、成本阈值和污染防护测试 |
+
+一、项目定位
+
+这是一个以“观察者视角”为核心的文字世界演化模拟器。
+重点不是严谨数值游戏，而是让世界在较少规则下持续推进，并产生可观察、可追踪、带叙事感的事件流。
+
+用户偏好：
+- 中文输出
+- 长内容优先表格
+- 持续推进，不轻易停
+- 随时考虑复杂度与成本
+- 模块化、解耦、便于后续扩展
+- UI 不重要，以文字为主
+
+
+二、当前阶段判断
+
+- 固定结构第一版完成度：100%
+- 第二阶段固定模型建设完成度：100%
+- 最终理想形态完成度：约 62%
+
+项目已完成从 0 到 1，当前处于“固定模型收口 + 成本治理与 AI 分层 + player 信息隔离细化”的阶段。
+
+
+三、最近已完成的关键工作
+
+1. 组织层
+
+- 新增组织类型：
+  - infrastructure_consortium
+  - data_cult
+  - civic_guild
+  - logistics_syndicate
+- 已接入：
+  - 初始 doctrine 偏置
+  - 初始 operational_style 偏置
+  - 派系动作权重偏置
+  - watch faction 的行为签名输出
+
+2. 结构观察层
+
+- midlayer_changes 已支持按主题分组
+- midlayer_changes 已分为 `project_shifts / supply_shocks / anomaly_surges / security_clamps / other_changes`
+- `archive / protocol / lifeform / migration` 一类异常事件已不再误归到“安保收口”
+- midlayer_changes 在无直连 project/supply 结构时，支持事件投影回退
+- project_fronts / supply_fronts / project_networks 在无直连结构时，支持事件投影回退
+- truth 输出已做一轮前线簇压缩，减少账本感
+- `other_changes` 已降为低优先级回退桶，避免杂项信息压过主局势
+- player 输出已支持“已能感到约 N 条压力线”的弱提示
+
+3. 关系层
+
+- 每步结束后，会从动态 relations 同步回：
+  - faction.allied_factions
+  - faction.rival_factions
+  - civilization.external_relations
+- 已修复“同一对派系同时是盟友和对手”的摘要污染问题
+- watch civ full truth focus=relations 已接入 external_relations 输出
+
+4. 成本治理与 AI 分层
+
+- 已新增统一 `src/core/ai_policy.py`
+- `intent / observer / chronicler` 已不再各自维护分散门槛判断
+- 角色意图已接入轻量 `signal score`
+- chronicle 已接入统一信号分判断，低信号周直接 fallback
+- observer 已统一走共享门槛入口，后续可继续加轻量阈值
+- `ai_budget_summary` 已压缩成更易扫描的单行格式
+- 默认阈值已校准为：
+  - protagonist intent = 12
+  - active intent = 9
+  - observer brief/full = 6 / 8
+  - chronicle = 16
+- 当前默认目标是“高信号才花 AI 成本”，而不是全面铺开 AI 调用
+
+5. player 观察收口补充
+
+- `player` 视角下的 civilization `key_regions / key_factions` 已不再直出内部 ID
+- `player` 视角下的 faction `controlled_regions` 已改为数量/线索化表达
+- `player` 视角下的 character `affiliations` 已改为模糊归属提示
+- `player` 观察默认不再显示 `observer_view_blocked` 一类内部 AI policy 噪声
+- observer 默认模式已从 `brief_only` 调整为 `truth_only`
+
+6. 当前仍未完全收口的点
+
+- `player` 视角标题行和对象命名仍偏“系统名 / 内部编号感”
+- 一部分 `player` 输出虽然不再直泄字段，但仍有较强结构面板味
+- `relations / history / memory` 一组 player 口吻仍值得继续抽查
+- SiliconFlow 在当前环境下仍主要表现为客户端不可用或联网失败，真实 AI 触发验证仍偏少
+
+
+四、当前最重要的文件
+
+- 当前版本完成度与缺口清单.txt
+- 下一阶段开发排期.txt
+- 当前已实现功能说明.txt
+- src/core/engine.py
+- src/narrative/summaries.py
+- src/rules/faction_actions.py
+- src/world/builder.py
+
+
+五、当前最自然的下一步
+
+第二阶段固定模型已经封口。除非发现 bug，不建议继续做固定模型深度清理；下一步应整理 AI 深接入接口并做单链路试点。
+
+优先方向：
+- AI 输入摘要边界：world frame、active events、pressure threads、relation fronts、character knowledge
+- AI 输出契约：intent、observer、chronicle 哪些字段允许写回
+- 单链路试点：优先 protagonist intent 或 observer truth full
+- fallback、成本阈值、越权字段防护测试
+
+要求：
+- 尽量沿现有 relation / summary / engine 回流结构增量实现
+- 不引入新的大型状态系统
+- 继续注意复杂度和输出可读性
+
+
+六、建议的新会话启动方式
+
+推荐命令：
+
+codex -C D:\codex\Terrarium_Project -s danger-full-access -a on-failure --search -c shell_environment_policy.inherit=all
+
+如果使用新会话，建议先读取：
+- 当前版本完成度与缺口清单.txt
+- 下一阶段开发排期.txt
+- 当前已实现功能说明.txt
+- 本文件
+
+
+七、启动后建议给 Codex 的第一条提示
+
+继续 D:\codex\Terrarium_Project 这个项目。
+
+先读取：
+- 当前版本完成度与缺口清单.txt
+- 下一阶段开发排期.txt
+- 当前已实现功能说明.txt
+- 重开会话交接摘要.txt
+
+然后继续做观察输出收口与 player 信息隔离细化。
+优先处理：
+- player 视角对象命名和标题层的系统味
+- civ/faction/history 的 player 口吻
+- visibility clue 一致性
+- taxonomy 的轻量样例测试
+不要新建重系统，尽量沿现有 summary / visibility / taxonomy 增量实现。

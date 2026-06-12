@@ -1,0 +1,2 @@
+Generate a focused observation for the requested target.
+Do not add facts that contradict supplied state.

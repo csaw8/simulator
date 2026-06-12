@@ -1,0 +1,588 @@
+Terrarium Project 当前数据结构总览
+
+更新时间：2026-06-10
+适用范围：当前固定结构模型 + 已落地的项目网络中层结构
+目标：用尽量清晰、简洁的方式说明系统现在到底由哪些结构组成，以及它们之间如何连接
+
+
+一、整体结构分层
+
+当前系统可以分成六层：
+
+1. 世界框架层
+- WorldState
+- StructureTemplate
+
+2. 宏观主体层
+- Civilization
+- Region
+
+3. 组织与行动层
+- Faction
+
+4. 人物层
+- Character
+
+5. 非人异常存在层
+- Relic
+- Presence 语义抽象
+
+6. 中层承载结构
+- ProjectNetwork
+
+辅助层：
+- Event
+- Relation
+- EventStream
+
+
+二、顶层容器
+
+1. WorldState
+
+作用：
+- 当前世界唯一的顶层内存容器
+- 所有核心对象都挂在这里
+- step 推进时也是围绕它进行
+
+当前主要字段：
+- seed
+- current_tick
+- current_granularity
+- civilizations
+- regions
+- characters
+- factions
+- relics
+- projects
+- relations
+- event_stream
+- active_event_ids
+- structure_template
+- world_tags
+
+当前意义：
+- 它不是单一对象，而是整个世界运行时的总状态树
+
+
+2. StructureTemplate
+
+作用：
+- 决定当前这个世界更偏向怎样演化
+- 它不是普通显示信息，而是会真实影响行为
+
+当前主要字段：
+- era_frame
+- pressure_axes
+- dominant_fronts
+- organization_climates
+- anomaly_bias
+- civ_path_biases
+- observer_lens
+
+当前影响范围：
+- 文明初始战略姿态
+- 派系初始教条
+- 派系初始行为风格
+- fallback / placeholder 意图
+- 派系动作权重
+
+
+三、宏观主体层
+
+1. Civilization
+
+作用：
+- 表示一个宏观文明单位
+- 是世界宏观演化和长期规划的重要主体
+
+当前主要结构：
+- 基础身份
+  - civ_id
+  - name
+  - origin_region_id
+  - status
+  - stage
+
+- 宏观压力
+  - cohesion
+  - expansion_pressure
+  - scarcity_pressure
+  - legitimacy
+  - 对应 trend 字段
+
+- 画像信息
+  - trajectory
+  - tech_profile
+  - belief_profile
+  - summary_tags
+  - military_posture
+
+- 关键关联
+  - key_regions
+  - key_factions
+  - key_characters
+  - key_relics
+  - key_projects
+
+- 战略层
+  - strategic_posture
+  - strategic_posture_stability
+  - strategic_posture_pending
+  - strategic_posture_pending_hits
+  - strategic_memory
+  - strategic_bias_trace
+
+当前角色：
+- 文明是“上层战略者”
+- 当前系统里它比地区和角色更适合表达长期方向
+
+
+2. Region
+
+作用：
+- 表示世界中的地区单元
+- 是大多数事件、观察和局部冲突的落点
+
+当前主要结构：
+- 基础身份
+  - region_id
+  - name
+  - civ_id
+  - region_type
+
+- 状态压力
+  - connectivity
+  - security
+  - prosperity
+  - scarcity
+  - infrastructure
+  - ecological_stress
+  - political_tension
+  - belief_temperature
+  - 对应 trend 字段
+
+- 内容容器
+  - population_profile
+  - strategic_value
+  - active_factions
+  - active_characters
+  - resident_relics
+  - local_story_hooks
+
+当前角色：
+- Region 是“世界最主要的场景节点”
+- 几乎所有具体观察最终都要落回地区
+
+
+四、组织与行动层
+
+1. Faction
+
+作用：
+- 表示文明内部或跨区组织
+- 当前是推动世界变化的最重要非角色行动体
+
+当前主要结构：
+- 基础身份
+  - faction_id
+  - name
+  - faction_type
+  - parent_civ_id
+  - power_scope
+
+- 状态
+  - influence
+  - influence_trend
+  - cohesion
+
+- 教条与风格
+  - doctrine_tags
+  - operational_style
+  - operational_style_stability
+  - operational_style_pending
+  - operational_style_pending_hits
+  - operational_style_memory
+  - operational_style_trace
+
+- 控制与关系
+  - controlled_regions
+  - key_characters
+  - rival_factions
+  - allied_factions
+
+当前角色：
+- Faction 是“中观行动者”
+- 文明决定长期方向，派系负责具体争夺、渗透、结盟、项目卡位、资源调配等动作
+
+
+五、人物层
+
+1. Character
+
+作用：
+- 表示活跃人物
+- 当前分为主角型角色与普通活跃角色
+
+当前主要结构：
+- 基础身份
+  - char_id
+  - name
+  - character_level
+  - current_region_id
+  - affiliation
+
+- 画像与倾向
+  - role_tags
+  - capability_tags
+  - desire_tags
+  - fear_tags
+  - notoriety
+  - initiative
+  - agency_mode
+
+- 记忆与行动
+  - memory_summary
+  - recent_goal
+  - last_intent
+  - wake_priority_seed
+  - observation_trace
+
+- 关系
+  - loyalty_map
+  - relationship_refs
+
+- 前线追踪层
+  - frontier_history
+  - frontier_theme
+  - frontier_theme_trace
+  - frontier_theme_strength
+  - frontier_theme_shift
+  - frontier_previous_theme
+  - frontier_focus_ref
+  - frontier_focus_type
+  - frontier_focus_shift
+  - frontier_focus_trace
+  - frontier_focus_reason
+
+当前角色：
+- Character 是“局部前线行动者”
+- 文明和派系会往下拉它，但它也会通过意图和事件反过来塑造局部历史
+
+
+六、非人异常存在层
+
+1. Relic
+
+作用：
+- 当前用于承载重要的非人物异常存在
+- 虽然底层名字还是 relic，但语义上已经扩成更一般的 exceptional presence
+
+当前主要结构：
+- 基础身份
+  - relic_id
+  - name
+  - relic_type
+  - current_region_id
+  - holder_ref
+
+- 状态
+  - significance
+  - danger
+  - activation_state
+
+- 巨构/特殊结构扩展字段
+  - origin_mode
+  - construction_state
+  - sponsor_ref
+  - contractor_ref
+  - financier_ref
+  - opposition_ref
+
+- 叙事挂载
+  - story_tags
+  - linked_events
+
+当前已支持类型：
+- relic_device
+- megastructure
+- sealed_archive
+- founding_protocol
+- anomalous_lifeform
+
+当前角色：
+- Relic 不是普通物件，而是“异常前线的源头”
+- 很多地区危机、派系争夺、角色追逐都围绕它发生
+
+
+2. Presence 语义抽象
+
+作用：
+- 这是对 relic 的中性语义封装
+- 现在很多逻辑已经不再直接按 relic_type，而是先转成 family
+
+当前主要 family：
+- megastructure
+- autonomous_system
+- sealed_archive
+- anomalous_lifeform
+- relic
+
+当前意义：
+- 这是未来去 relic 中心化的重要过渡层
+
+
+七、中层承载结构
+
+1. ProjectNetwork
+
+作用：
+- 表示围绕巨构展开的中层项目网络
+- 用来承载预算、施工、融资、反对、执行和前线标签
+
+当前是为什么新增：
+- 之前这些东西只能硬挂在派系或巨构身上
+- 现在需要一个“既不是文明，也不是派系，也不是巨构本体”的中层结构
+
+当前主要结构：
+- 基础身份
+  - project_id
+  - name
+  - project_type
+  - status
+  - pressure
+
+- 参与方
+  - sponsor_refs
+  - contractor_refs
+  - financier_refs
+  - opposition_refs
+
+- 关联对象
+  - linked_regions
+  - linked_presence_refs
+  - linked_factions
+  - linked_civs
+  - linked_characters
+
+- 前线信息
+  - front_tags
+  - recent_notes
+
+当前范围：
+- 目前只覆盖 megastructure 对应项目
+- 还没有扩展到所有工程、制度项目或跨区供应项目
+
+当前角色：
+- ProjectNetwork 是“中层工程前线容器”
+- 它把巨构、派系、文明、角色之间原本松散的工程关系绑成一个可观察对象
+
+
+八、辅助结构
+
+1. Event
+
+作用：
+- 表示一条世界事件
+- 是整个系统叙事层和推进层的核心交换单位
+
+当前主要结构：
+- 基础字段
+  - event_id
+  - tick
+  - time_granularity
+  - event_type
+  - event_scope
+  - title
+  - summary
+
+- 引用字段
+  - region_refs
+  - civ_refs
+  - actor_refs
+  - faction_refs
+  - relic_refs
+
+- 语义字段
+  - cause_tags
+  - result_tags
+  - severity
+  - novelty
+  - consequence_score
+  - narrative_priority
+  - visibility
+
+当前角色：
+- Event 是“系统中一切历史痕迹的标准格式”
+
+
+2. Relation
+
+作用：
+- 表示任意两个核心对象之间的关系
+
+当前主要用途：
+- controls
+- contesting
+- rival_to
+- allied_with
+- contracting
+- financing
+- obstructing
+- infiltrating
+- flashpoint_actor
+- supply_influence
+
+当前角色：
+- Relation 是“对象之间的关系网层”
+- 观察时用它还原竞争、控制和依附关系
+
+
+3. EventStream
+
+作用：
+- 存放事件历史
+- 提供 recent / new_event_id 等基础操作
+
+当前角色：
+- 它是“世界历史日志”
+
+
+九、对象之间的连接关系
+
+1. Civilization 与其他层的连接
+
+- Civilization -> Region
+  - 通过 `key_regions`
+  - Region 通过 `civ_id` 回指文明
+
+- Civilization -> Faction
+  - 通过 `key_factions`
+  - Faction 通过 `parent_civ_id` 回指文明
+
+- Civilization -> Character
+  - 通过 `key_characters`
+  - 角色通常经派系或地区间接挂在文明下
+
+- Civilization -> Relic
+  - 通过 `key_relics`
+
+- Civilization -> ProjectNetwork
+  - 通过 `key_projects`
+
+
+2. Region 与其他层的连接
+
+- Region -> Faction
+  - `active_factions`
+
+- Region -> Character
+  - `active_characters`
+
+- Region -> Relic
+  - `resident_relics`
+
+- Region -> ProjectNetwork
+  - 项目通过 `linked_regions` 指向地区
+
+
+3. Faction 与其他层的连接
+
+- Faction -> Region
+  - `controlled_regions`
+
+- Faction -> Character
+  - `key_characters`
+
+- Faction -> Faction
+  - `rival_factions`
+  - `allied_factions`
+
+- Faction -> Relic
+  - 主要通过 holder / contractor / financier / opposition / relation 网络产生联系
+
+- Faction -> ProjectNetwork
+  - `linked_factions`
+  - 以及 sponsor / contractor / financier / opposition 这些角色位
+
+
+4. Character 与其他层的连接
+
+- Character -> Region
+  - `current_region_id`
+
+- Character -> Faction
+  - `affiliation`
+
+- Character -> Relic / Region / Faction
+  - 通过 frontier_focus 和 relationship_refs 间接挂接
+
+- Character -> ProjectNetwork
+  - 当前通过 `linked_characters` 轻量引用
+
+
+5. Relic 与其他层的连接
+
+- Relic -> Region
+  - `current_region_id`
+
+- Relic -> holder
+  - `holder_ref`
+
+- Relic -> ProjectNetwork
+  - 项目通过 `linked_presence_refs` 引用它
+
+- Relic -> sponsor / contractor / financier / opposition
+  - 主要出现在巨构语义中
+
+
+十、当前最重要的“中间层”
+
+当前系统里最关键的中间层有三种：
+
+1. StructureTemplate
+- 它在“世界风格”和“具体行为”之间做桥接
+
+2. Relation
+- 它在“对象本体”和“对象之间的真实连接”之间做桥接
+
+3. ProjectNetwork
+- 它在“巨构本体”和“围绕巨构发生的制度/工程冲突”之间做桥接
+
+这三个中间层决定了当前系统不再只是“对象清单”，而是开始变成“可运行的结构网络”。
+
+
+十一、当前结构的优点
+
+1. 分层已较清楚
+- 世界框架、文明、地区、派系、角色、异常存在、项目网络基本各有职责
+
+2. 扩展路径明确
+- 如果以后要加宽度，可以优先通过中层结构而不是直接加大量顶层对象
+
+3. 观察层已能映射结构
+- watch 系列现在不只是看对象字段，而是能看到风格、前线、关系、局部人物、局部物件、项目网络
+
+
+十二、当前结构仍然偏薄的地方
+
+1. SupplyLine 还没有
+- 供给线目前仍更多依附在事件和地区状态里
+
+2. ProjectNetwork 还不推进
+- 目前项目网络已生成、可观察、可存档
+- 但还没有自己的独立推进规则
+
+3. Character 与 ProjectNetwork 的关系还比较轻
+- 现在只是轻度引用，没有形成角色围绕项目的长期网络化行为
+
+
+十三、当前一句话结构结论
+
+当前系统已经从：
+“文明 / 地区 / 派系 / 角色 / 异常存在”
+
+发展到：
+“文明 / 地区 / 派系 / 角色 / 异常存在 / 项目网络 / 关系网 / 结构模板”
+
+它已经不再是单层对象集合，而是一个具备中层承载体和可观察结构联系的文字世界模拟框架。

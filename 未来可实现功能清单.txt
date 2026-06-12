@@ -1,0 +1,441 @@
+Terrarium Project 未来可实现功能清单
+
+更新时间：2026-06-10
+适用范围：当前固定结构模型的下一阶段迭代
+目标：列出具有可实现性、可拆分开发、且与当前架构兼容的功能
+
+
+一、说明
+
+本清单只列当前阶段“值得做、做得动、接得上现有结构”的功能。
+不写纯概念方向，也不写需要整体重构后才能落地的远景方案。
+
+每项功能按以下维度描述：
+- 目标：要解决什么问题
+- 实现方式：准备怎么做
+- 依赖：需要建立在哪些现有模块上
+- 复杂度：低 / 中 / 高
+- 优先级：P0 / P1 / P2
+
+
+二、P0：应优先实现的功能
+
+1. 角色知识分层正式落地
+
+目标：
+- 让角色不再默认接近全知
+- 让 AI 或 placeholder 的行动依据“它知道什么”而不是“系统知道什么”
+
+实现方式：
+- 在现有知识层基础上固定三层输入：
+  - direct：亲历、同地区、直接卷入
+  - rumored：传闻、间接听闻、派系内部扩散
+  - public：公开可见信息
+- 角色意图生成时只喂这三层信息
+- `watch character full truth` 增加 knowledge_snapshot 块
+- `player view` 不显示完整知识分层，只显示“其掌握的信息较片面/较充分”等弱提示
+
+依赖：
+- `src/agents/knowledge.py`
+- `src/agents/prompt_builder.py`
+- `src/narrative/summaries.py`
+
+复杂度：中
+优先级：P0
+
+
+2. placeholder 意图继承派系风格
+
+目标：
+- 让“组织行为风格”真实地下传到角色层
+- 让 AI 不可用时，世界仍能表现出派系差异，而不是所有人都像同一套模板
+
+实现方式：
+- 在 placeholder 意图选择时读取角色所属派系的：
+  - operational_style
+  - doctrine_tags
+  - parent civilization strategic_posture
+- 为不同风格增加不同意图倾向：
+  - discipline_network 更偏争权、渗透、稳控
+  - contract_predator 更偏项目、预算、融资
+  - containment_cadre 更偏封控、压制、控制异常存在
+  - extraction_broker 更偏资源调配、供应杠杆
+- 只做权重修正，不改现有意图接口
+
+依赖：
+- `src/agents/intent_generator.py`
+- `src/agents/fallback.py`
+- `src/core/engine.py`
+
+复杂度：低
+优先级：P0
+
+
+3. 小人物按需生成
+
+目标：
+- 让世界在不预生全部人口的前提下显得更“活”
+- 降低初始化成本，同时增加观察时的局部丰富度
+
+实现方式：
+- 不把所有普通人物都存成长期实体
+- 新增“临时局部角色”机制：
+  - 只在 `watch region`、`watch event`、`watch faction` 时按上下文生成
+  - 生成内容包括姓名、身份、立场、近期反应
+  - 不进入长期推进循环
+- 若某个临时角色多次被提及，可升级为正式角色
+
+依赖：
+- 新增轻量对象工厂，建议落在 `src/world/ambient_entities.py`
+- `src/narrative/summaries.py`
+- `src/interfaces/commands.py`
+
+复杂度：中
+优先级：P0
+
+
+4. 小物品/局部对象按需生成
+
+目标：
+- 让世界不只有“大对象”
+- 在观察时出现更细的现场感，但不增加长期维护负担
+
+实现方式：
+- 新增“局部对象描述层”，只在观察时生成：
+  - 货物
+  - 设备
+  - 文件
+  - 车辆
+  - 临时设施
+  - 伤痕场景
+- 这些对象默认不进入全局状态
+- 若与关键事件反复绑定，再提升为长期异常存在或长期项目对象
+
+依赖：
+- 新增观察辅助模块，建议落在 `src/narrative/ambient_detail.py`
+- `watch region`、`watch relic`、`events`
+
+复杂度：中
+优先级：P0
+
+
+5. 事件后续余波机制
+
+目标：
+- 让事件从“单步结果”变成“有后效的历史链”
+- 提升故事连续性
+
+实现方式：
+- 给少数高价值事件族增加 follow-up 规则
+- 第一阶段只支持 4 类：
+  - 巨构事故 -> 预算拖延 / 安全封控 / 责任争夺
+  - 档案泄露 -> 合法性波动 / 派系争权 / 地区舆论升温
+  - 协议突破 -> 安全波动 / 接管争夺 / 统治信任变化
+  - 异常生物扩散 -> 迁徙压力 / 生物封锁 / 地区恐慌
+- 实现为“事件生成事件”，不做复杂传播图
+
+依赖：
+- `src/events/models.py`
+- `src/rules/*`
+- `src/core/engine.py`
+
+复杂度：中
+优先级：P0
+
+
+三、P1：建议在 P0 之后实现的功能
+
+6. 新增中层结构：项目网络
+
+目标：
+- 给“文明/派系/角色/巨构”之间增加一个更稳定的中层对象
+- 解决很多冲突只能硬挂在地区或异常存在上的问题
+
+实现方式：
+- 新增 `ProjectNetwork` 对象
+- 每个项目网络可挂载：
+  - 关联地区
+  - 关联派系
+  - 关联文明
+  - 关联关键人物
+  - 关联巨构或其他异常存在
+- 初版字段建议：
+  - project_id
+  - name
+  - project_type
+  - status
+  - sponsor_refs
+  - contractor_refs
+  - opposition_refs
+  - linked_regions
+  - linked_presence_refs
+- 支持 `watch project`
+
+依赖：
+- 新增 `src/world/project.py`
+- `src/world/state.py`
+- `src/narrative/summaries.py`
+- `src/interfaces/commands.py`
+
+复杂度：中
+优先级：P1
+
+
+7. 新增中层结构：跨区供应链
+
+目标：
+- 让资源压力有更明确的中介结构
+- 让“供给前线”不只表现为抽象数值
+
+实现方式：
+- 新增 `SupplyLine` 对象
+- 初版只需要支持：
+  - 起点地区
+  - 终点地区
+  - 主导派系
+  - 压力状态
+  - 风险状态
+- 派系资源调配和融资动作优先对供应链产生影响
+- `watch civ` 与 `watch faction` 增加供应链前线块
+
+依赖：
+- 新增 `src/world/supply.py`
+- `src/rules/faction_actions.py`
+- `src/narrative/summaries.py`
+
+复杂度：中
+优先级：P1
+
+
+8. 玩家视角的模糊组织气质提示
+
+目标：
+- 保持信息隔离
+- 但玩家能逐步“感觉到”某派系的风格，而不是完全黑箱
+
+实现方式：
+- 在 `player view` 下，不直接显示 `operational_style`
+- 改为显示模糊标签，例如：
+  - 行事偏隐蔽
+  - 喜欢围绕项目布局
+  - 擅长封控与接管
+  - 偏好资源调配与压力转运
+- 标签由近几步公开事件和关系线索推断
+
+依赖：
+- `src/narrative/summaries.py`
+- `src/events/visibility_rules.py`
+
+复杂度：低
+优先级：P1
+
+
+9. 观察聚焦过滤增强
+
+目标：
+- 让用户能只看自己关心的一类线索
+- 避免 `full` 输出越来越厚后阅读成本过高
+
+实现方式：
+- 给 `watch` 和 `events` 增加过滤参数，例如：
+  - `focus=politics`
+  - `focus=project`
+  - `focus=anomaly`
+  - `focus=relations`
+  - `focus=supply`
+- 初版做成命令解析过滤，不改底层数据结构
+
+依赖：
+- `src/interfaces/commands.py`
+- `src/narrative/summaries.py`
+
+复杂度：低
+优先级：P1
+
+
+10. 事件标签标准化
+
+目标：
+- 为后续宽度扩展做准备
+- 避免事件名继续增长后难以维护
+
+实现方式：
+- 为事件补统一标签维度：
+  - domain：politics / supply / project / anomaly / security
+  - actor_mode：civilization / faction / character / system
+  - fallout：public / structural / hidden / local
+- 初版只在新事件生成时补 tags，不回填旧事件
+
+依赖：
+- `src/events/models.py`
+- 各类事件生成器
+
+复杂度：中
+优先级：P1
+
+
+四、P2：适合在结构更稳后再做的功能
+
+11. 局部谣言与误判系统
+
+目标：
+- 让角色知识不是“真/假”二元，而是带噪声
+- 增强局内不透明性和故事张力
+
+实现方式：
+- 基于已有三层知识再加一层 `distorted`
+- 某些 rumored 事件可被轻度改写后进入角色观察
+- 只影响角色层和观察文本，不影响底层真相
+
+依赖：
+- 角色知识分层先完成
+
+复杂度：中
+优先级：P2
+
+
+12. 角色晋升与降级机制
+
+目标：
+- 让“临时人物 -> 活跃人物 -> 关键人物”形成流动
+- 让世界的人物层有自然更替
+
+实现方式：
+- 记录角色曝光度、事件卷入度、派系重要度
+- 达到阈值时：
+  - 普通角色升级为活跃角色
+  - 临时局部角色升级为正式角色
+- 长期无活动的活跃角色可降级为背景角色
+
+依赖：
+- 小人物按需生成
+- 角色事件统计
+
+复杂度：中
+优先级：P2
+
+
+13. 文明发展路径阶段化
+
+目标：
+- 让文明不仅有 posture，还能有较长时间尺度的路径演化
+
+实现方式：
+- 在现有 `civ_path_biases` 基础上增加阶段推进
+- 例如：
+  - scarcity_adaptation -> distributed austerity -> coercive logistics
+  - managed_expansion -> project federation -> overstretched grid
+- 先做状态链，不做复杂科技树
+
+依赖：
+- `src/world/civilization.py`
+- `src/core/engine.py`
+
+复杂度：中
+优先级：P2
+
+
+14. 异常存在从 relic 命名向更中性抽象过渡
+
+目标：
+- 逐步减少“所有非人异常存在都叫 relic”的工程负担
+- 为以后扩种类做准备
+
+实现方式：
+- 先保留底层数据兼容
+- 新增中性接口和显示语义：
+  - presence
+  - anomaly
+  - exceptional entity
+- 新代码优先面向中性接口编写
+
+依赖：
+- `src/world/presence.py`
+- `src/narrative/*`
+- `src/rules/*`
+
+复杂度：中
+优先级：P2
+
+
+15. 可配置推进节奏
+
+目标：
+- 让重要时刻更细，平稳期更粗
+- 减少无意义 step
+
+实现方式：
+- 新增推进节奏策略：
+  - calm -> week
+  - tense -> day
+  - crisis -> sub-day
+- 根据活跃事件密度与高优先级对象自动调整
+- 初版只改变文案与 tick 粒度，不改变全部规则时间学
+
+依赖：
+- `src/core/engine.py`
+- `src/world/state.py`
+
+复杂度：中
+优先级：P2
+
+
+五、暂不建议立即做的功能
+
+1. 全面自由结构生成
+
+原因：
+- 当前结构虽然可扩展，但还没有足够强的约束模板
+- 现在放开给 AI 自主定义对象类别，容易先把观察层和存档层打碎
+
+建议：
+- 先把“固定结构 + 中层结构 + 信息隔离 + 行为惯性”做厚
+
+
+2. 重型数值规则层
+
+原因：
+- 不符合当前项目“故事性优先”的方向
+- 会明显提升复杂度、测试成本和调参成本
+
+建议：
+- 保留模糊状态与事件驱动，不往高精度模拟器走
+
+
+3. 图形化 UI
+
+原因：
+- 当前真正缺的是结构与观察质量，不是显示外壳
+- 文本层还在快速迭代，过早做 UI 会拖慢核心模型
+
+建议：
+- 继续保持 CLI 文本观察，等结构稳定后再决定是否补可视化
+
+
+六、推荐执行顺序
+
+推荐顺序如下：
+
+1. 角色知识分层正式落地
+2. placeholder 意图继承派系风格
+3. 小人物按需生成
+4. 小物品/局部对象按需生成
+5. 事件后续余波机制
+6. 项目网络
+7. 跨区供应链
+8. 玩家视角模糊组织气质提示
+9. 观察聚焦过滤增强
+10. 事件标签标准化
+11. 角色晋升与降级
+12. 文明发展路径阶段化
+13. 中性异常存在抽象过渡
+14. 可配置推进节奏
+
+
+七、一句话结论
+
+当前阶段最值得做的，不是盲目加宽对象种类，而是先把：
+“知识边界、组织风格下传、局部对象按需生成、事件历史余波、中层结构”
+这五块补齐。
+
+这五块都能接在现有架构上，复杂度可控，而且会明显提升世界的活性、真实感和可观察性。

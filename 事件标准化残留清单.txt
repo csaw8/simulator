@@ -1,0 +1,91 @@
+Terrarium Project 事件标准化残留清单
+
+更新时间：2026-06-10
+目标：记录当前事件标准化完成后，仍残留的历史判断点与后续处理建议
+
+
+一、当前判断
+
+事件标准化第一阶段已经基本完成。
+
+截至 2026-06-10，本轮又完成了一次关键收口：
+
+- `midlayer_changes` 已统一复用 taxonomy 分桶
+- 新增 `anomaly_surges` 分桶
+- `archive / protocol / lifeform / migration` 一类异常事件已不再默认归入 `security_clamps`
+- `security_clamps` 现在更偏向 `security / lockdown / cordon` 这类明确安保动作
+- 已补一组最小 taxonomy 固定样例测试，锁住核心 midlayer 分桶语义
+
+目前 taxonomy 已经接入：
+
+- `commands`
+- `stream_view`
+- `visibility_rules`
+- `summaries`
+- `ambient_people`
+- `ambient_detail`
+- `fallback`
+- `intent_generator`
+- `engine`
+
+因此现在的残留项，更多属于：
+
+- 历史脏判断
+- 低频分支
+- 生产端未显式标签化
+
+
+二、残留项分组
+
+| 分组 | 当前状态 | 优先级 |
+|---|---|---|
+| 读层残留字符串判断 | 少量存在 | 中 |
+| 行为层残留字符串判断 | 少量存在 | 中 |
+| 历史 trace 文本 | 大量存在但风险低 | 低 |
+| 中层分桶样例测试 | 已补最小样例 | 低 |
+| 事件生产端显式标签化 | 尚未开始 | 高 |
+| 旧 event_type 命名一致性 | 部分混杂 | 中 |
+
+
+三、建议继续清理的文件
+
+| 文件 | 残留类型 | 说明 |
+|---|---|---|
+| `src/core/engine.py` | 少量 history/theme 文本判断 | 已清主干，还可继续精修 |
+| `src/narrative/summaries.py` | 仍有零散 `event_type` 启发式 | 主要影响细节解释，不影响主链 |
+| `src/events/visibility_rules.py` | 仍保留少量 token 分支 | 当前已可用，属于后续微调 |
+| `src/events/taxonomy.py` | 已有最小显式样例测试 | 后续只需随新事件族增量补样例 |
+| `src/rules/event_fallout.py` | 生产端触发族判断 | 适合第二阶段再收口 |
+| `src/rules/presence_dynamics.py` | 生产端异常事件命名 | 当前不宜大改 |
+| `src/rules/faction_actions.py` | 生产端组织事件命名 | 当前不宜大改 |
+| `src/rules/resolver.py` | 角色结果事件命名 | 当前不宜大改 |
+
+
+四、当前不建议立刻处理的残留
+
+| 残留项 | 不建议现在处理的原因 |
+|---|---|
+| 全量统一所有 `event_type` 名称 | 影响面太大，且当前读层已基本统一 |
+| 给所有旧事件回填新字段 | 当前事件是运行时生成，不值得先做迁移工程 |
+| 在 rules 层全面改为显式 `theme/family` | 会把这轮改动面放大到不必要的程度 |
+
+
+五、下一阶段可执行动作
+
+| 顺序 | 动作 | 工作量 |
+|---|---|---|
+| 1 | 给新生成事件显式写 `theme_tags` / `family` 扩展字段 | 中 |
+| 2 | 逐步把 `rules/*` 中的事件族判断改成共享 helper | 中 |
+| 3 | 统一 `event_type` 命名风格，例如 `faction_* / archive_* / protocol_* / lifeform_*` | 中 |
+| 4 | 按新增事件族继续扩充 taxonomy 样例测试 | 低 |
+
+
+六、当前结论
+
+现在最合理的做法不是继续盲目扫零散判断，而是：
+
+1. 承认第一阶段标准化已经够用
+2. 用文档固化当前语义边界
+3. 在后续扩宽或新增事件族时优先遵守 taxonomy
+
+也就是说，后面应以“增量规范新内容”为主，而不是为了追求纯度继续大规模清旧逻辑。

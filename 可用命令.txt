@@ -1,0 +1,57 @@
+现在你可以这样用
+
+一、启动
+
+交互模式：
+
+`python -m src.app.main`
+
+二、基础命令
+
+- `help`
+- `status`
+- `frame`
+- `frame full truth`
+- `step`
+- `step 3`
+- `step 3 truth`
+- `step 3 player`
+- `events`
+- `events 10`
+- `events full truth`
+- `events region region_04 12 full truth`
+- `events faction civ_01_faction_01 10 brief player`
+- `save`
+- `reset`
+- `quit`
+
+三、观察命令
+
+- `watch region region_04`
+- `watch region region_04 full truth`
+- `watch character char_p_01 full player`
+- `watch civ civ_01 full truth`
+- `watch faction civ_01_faction_01 full player`
+- `watch relic relic_01 full truth`
+- `watch project project_01 full truth`
+- `watch supply supply_01 full truth`
+
+四、focus 过滤示例
+
+- `watch civ civ_01 full player focus=summary`
+- `watch civ civ_01 full truth focus=relations`
+- `watch faction civ_01_faction_01 full truth focus=history`
+- `watch character char_p_01 full player focus=front`
+- `events 20 full truth focus=project`
+- `events region region_04 12 full truth focus=anomaly`
+
+五、调试命令
+
+- `debug llm`
+
+说明：
+
+- `truth` 为系统真相视角
+- `player` 为玩家观察视角
+- `brief/full` 控制输出密度
+- `focus=...` 用于限制观察块，减少噪声

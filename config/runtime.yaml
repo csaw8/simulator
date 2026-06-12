@@ -1,0 +1,5 @@
+runtime:
+  default_granularity: week
+  crisis_granularity: day
+  event_stream_batch_size: 5
+  critical_mode_threshold: high
