@@ -9,7 +9,10 @@ from src.world.descriptor_lexicon import (
     normalize_descriptor_category,
     validate_descriptor_tags,
 )
-from src.world.style_profile import DEFAULT_STYLE_PROFILE_ID
+from src.world.style_profile import (
+    DEFAULT_STYLE_PROFILE_ID,
+    POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+)
 
 
 class DescriptorLexiconTests(unittest.TestCase):
@@ -27,6 +30,16 @@ class DescriptorLexiconTests(unittest.TestCase):
         lexicon = get_descriptor_lexicon("missing_profile")
 
         self.assertEqual(lexicon.lexicon_id, DEFAULT_STYLE_PROFILE_ID)
+
+    def test_second_descriptor_lexicon_is_readable(self) -> None:
+        lexicon = get_descriptor_lexicon(POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID)
+        categories = {tag.category for tag in lexicon.tags}
+
+        self.assertEqual(lexicon.lexicon_id, POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID)
+        self.assertEqual(
+            categories,
+            {"appearance", "function", "behavior", "sensory", "social_read", "ecological"},
+        )
 
     def test_descriptor_tag_lookup_returns_display_labels(self) -> None:
         tag = descriptor_tag("reactive", category="behavior")
@@ -131,6 +144,39 @@ class DescriptorLexiconTests(unittest.TestCase):
 
         self.assertIn("spore_haze", tag_ids)
         self.assertNotIn("cold_light", tag_ids)
+
+    def test_descriptor_tags_are_scoped_by_style_profile(self) -> None:
+        default_behavior = approved_descriptor_tag_ids(
+            category="behavior",
+            profile_type="character",
+            style_id=DEFAULT_STYLE_PROFILE_ID,
+        )
+        frontier_behavior = approved_descriptor_tag_ids(
+            category="behavior",
+            profile_type="character",
+            style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+        )
+
+        self.assertIn("reactive", default_behavior)
+        self.assertNotIn("guarded", default_behavior)
+        self.assertIn("guarded", frontier_behavior)
+        self.assertNotIn("reactive", frontier_behavior)
+        self.assertTrue(
+            is_approved_descriptor_tag(
+                "guarded",
+                category="behavior",
+                profile_type="character",
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            )
+        )
+        self.assertFalse(
+            is_approved_descriptor_tag(
+                "guarded",
+                category="behavior",
+                profile_type="character",
+                style_id=DEFAULT_STYLE_PROFILE_ID,
+            )
+        )
 
     def test_category_normalization_rejects_unknown_category(self) -> None:
         with self.assertRaises(ValueError):

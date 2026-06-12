@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 
 DEFAULT_STYLE_PROFILE_ID = "realistic_future_anomaly"
+POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID = "post_collapse_frontier"
 
 
 @dataclass(slots=True)
@@ -151,7 +152,63 @@ DEFAULT_WORLD_STYLE_PROFILES: dict[str, WorldStyleProfile] = {
             "kingdom",
             "heroic destiny",
         ],
-    )
+    ),
+    POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID: WorldStyleProfile(
+        style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+        world_style="post-collapse frontier settlements",
+        setting_summary=(
+            "fragmented frontier communities surviving around ruined infrastructure, "
+            "salvage routes, and contested safe zones"
+        ),
+        technology_level="salvaged_industrial_to_low_future",
+        anomaly_mode="environmental_hazard_and_ruin_legacy",
+        institution_tone="scarcity-driven, improvised, locally enforced",
+        default_observer_voice=(
+            "Use a spare frontier-observer tone, emphasizing scarcity, improvised order, "
+            "salvage value, and the visible cost of survival."
+        ),
+        observer_voices={
+            "region_public_pressure": (
+                "Use a local witness tone, emphasizing shortages, watch posts, barter pressure, "
+                "and what ordinary people can see from the road."
+            ),
+            "region_neutral": (
+                "Use a restrained frontier survey tone, centered on terrain, scarcity, "
+                "and visible settlement pressure."
+            ),
+            "character_reactive": (
+                "Write like an observer tracking someone shaped by immediate survival pressure, "
+                "with attention to caution, debts, and local obligations."
+            ),
+            "civilization_default": (
+                "Use a settlement-scale political tone, emphasizing fragile agreements, "
+                "resource routes, and the institutions people rebuild from necessity."
+            ),
+            "relic_exceptional_presence": (
+                "Write like an observer approaching a dangerous ruin or legacy hazard, "
+                "emphasizing warning signs, scavenger myths, and practical risk."
+            ),
+            "faction_default": (
+                "Use a local-power tone, emphasizing control of routes, stores, repairs, "
+                "and the bargains that keep people alive."
+            ),
+        },
+        preferred_terms=[
+            "salvage",
+            "safe zone",
+            "water debt",
+            "ruin route",
+            "watch post",
+            "repair yard",
+            "scarcity pressure",
+        ],
+        forbidden_terms=[
+            "galactic empire",
+            "clean megacity",
+            "magic",
+            "heroic destiny",
+        ],
+    ),
 }
 
 
@@ -191,7 +248,48 @@ DEFAULT_NARRATIVE_LEXICONS: dict[str, NarrativeLexicon] = {
             "civic_guild": "地方社团",
             "logistics_syndicate": "物流势力",
         },
-    )
+    ),
+    POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID: NarrativeLexicon(
+        lexicon_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+        dynamic_structure_player_title="边境动静观察",
+        dynamic_structure_region_label="边境动静",
+        dynamic_structure_truth_block="dynamic_structures",
+        dynamic_structure_empty_player="路面上暂未看出稳定牵连",
+        dynamic_structure_empty_truth="None",
+        emergent_presence_player_title="荒野异动观察",
+        emergent_presence_region_label="荒野异动",
+        emergent_presence_truth_block="emergent_presences",
+        emergent_presence_empty_player="外界暂未看出稳定荒野牵连",
+        emergent_presence_empty_truth="None",
+        emergent_presence_linked_relic_label="废墟牵连",
+        emergent_presence_ecological_label="荒野线索",
+        emergent_presence_linked_relic_count_unit="处废墟牵连",
+        emergent_presence_linked_relic_empty="外界暂未看出稳定废墟牵连",
+        relic_presence_labels={
+            "relic_device": "旧世装置",
+            "megastructure": "旧世巨构",
+            "sealed_archive": "封闭档案库",
+            "founding_protocol": "旧秩序协议",
+            "anomalous_lifeform": "荒野异种",
+        },
+        project_display_prefix="修复工程",
+        supply_display_prefix="通路",
+        node_display_prefix="据点",
+        dynamic_structure_display_prefix="动静",
+        emergent_presence_display_prefix="荒野迹象",
+        faction_type_labels={
+            "government": "镇议会",
+            "megacorp": "旧企残部",
+            "security_force": "守备队",
+            "research_institute": "修理院",
+            "labor_union": "工棚联盟",
+            "network_cell": "地下信使",
+            "infrastructure_consortium": "修路帮",
+            "data_cult": "旧网信徒",
+            "civic_guild": "地方行会",
+            "logistics_syndicate": "车队势力",
+        },
+    ),
 }
 
 

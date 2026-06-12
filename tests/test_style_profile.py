@@ -11,6 +11,7 @@ from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 from src.world.style_profile import (
     DEFAULT_STYLE_PROFILE_ID,
+    POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
     get_narrative_lexicon,
     get_world_style_profile,
     observer_voice,
@@ -34,6 +35,16 @@ class WorldStyleProfileTests(unittest.TestCase):
 
         self.assertEqual(profile.style_id, DEFAULT_STYLE_PROFILE_ID)
 
+    def test_second_style_profile_is_readable_without_changing_default(self) -> None:
+        default_profile = get_world_style_profile(DEFAULT_STYLE_PROFILE_ID)
+        frontier_profile = get_world_style_profile(POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID)
+
+        self.assertEqual(default_profile.world_style, "realistic future technology civilization")
+        self.assertEqual(frontier_profile.style_id, POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID)
+        self.assertEqual(frontier_profile.world_style, "post-collapse frontier settlements")
+        self.assertIn("salvage", frontier_profile.preferred_terms)
+        self.assertIn("clean megacity", frontier_profile.forbidden_terms)
+
     def test_style_profile_serializes_to_plain_dict(self) -> None:
         payload = style_profile_to_dict(get_world_style_profile())
 
@@ -47,6 +58,14 @@ class WorldStyleProfileTests(unittest.TestCase):
         self.assertIn("World style: realistic future technology civilization.", text)
         self.assertIn("Setting summary:", text)
         self.assertIn("Forbidden terms:", text)
+
+    def test_second_style_profile_prompt_lines_use_frontier_terms(self) -> None:
+        lines = style_profile_prompt_lines(POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID)
+        text = "\n".join(lines)
+
+        self.assertIn("World style: post-collapse frontier settlements.", text)
+        self.assertIn("salvage", text)
+        self.assertIn("clean megacity", text)
 
     def test_observer_voice_comes_from_style_profile(self) -> None:
         voice = observer_voice(DEFAULT_STYLE_PROFILE_ID, "region_public_pressure")
@@ -79,6 +98,14 @@ class WorldStyleProfileTests(unittest.TestCase):
         lexicon = get_narrative_lexicon("missing_profile")
 
         self.assertEqual(lexicon.dynamic_structure_player_title, "动态线索观察")
+
+    def test_second_narrative_lexicon_uses_frontier_display_terms(self) -> None:
+        lexicon = get_narrative_lexicon(POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID)
+
+        self.assertEqual(lexicon.dynamic_structure_player_title, "边境动静观察")
+        self.assertEqual(lexicon.emergent_presence_player_title, "荒野异动观察")
+        self.assertEqual(lexicon.project_display_prefix, "修复工程")
+        self.assertEqual(lexicon.faction_type_labels["logistics_syndicate"], "车队势力")
 
     def test_player_display_name_uses_narrative_lexicon_prefixes(self) -> None:
         world = build_world(DEFAULT_WORLD_CONFIG)

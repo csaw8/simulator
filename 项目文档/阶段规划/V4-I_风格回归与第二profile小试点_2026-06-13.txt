@@ -1,0 +1,83 @@
+V4-I 风格回归与第二 profile 小试点
+
+日期：2026-06-13
+
+目标
+
+- 验证默认 profile `realistic_future_anomaly` 没有退化。
+- 新增一个小型第二 profile，证明 WorldStyleProfile / NarrativeLexicon / DescriptorLexicon 至少具备可替换性。
+- 不把规则、taxonomy、builder、事件生成器全量题材化。
+- 不改变默认世界构建行为。
+
+本轮新增 profile
+
+| 项 | 内容 |
+|---|---|
+| profile_id | `post_collapse_frontier` |
+| 定位 | 末世后边境聚落、小型可替换性试点 |
+| 风格关键词 | salvage / safe zone / water debt / ruin route / watch post / repair yard |
+| 禁用词 | galactic empire / clean megacity / magic / heroic destiny |
+| 技术层 | `salvaged_industrial_to_low_future` |
+| 异常模式 | `environmental_hazard_and_ruin_legacy` |
+| 制度语气 | scarcity-driven, improvised, locally enforced |
+
+实现范围
+
+| 层 | 改动 |
+|---|---|
+| WorldStyleProfile | 新增 `POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID` 和对应 profile |
+| NarrativeLexicon | 新增 `post_collapse_frontier` 显示词 |
+| DescriptorLexicon | 新增第二 profile 的小型 approved descriptor pool |
+| Tests | 增加第二 profile 可读性、prompt lines、lexicon 显示词、descriptor style scope、descriptor AI context 测试 |
+
+第二 profile NarrativeLexicon 示例
+
+| 字段 | 值 |
+|---|---|
+| dynamic_structure_player_title | `边境动静观察` |
+| emergent_presence_player_title | `荒野异动观察` |
+| project_display_prefix | `修复工程` |
+| supply_display_prefix | `通路` |
+| node_display_prefix | `据点` |
+| dynamic_structure_display_prefix | `动静` |
+| emergent_presence_display_prefix | `荒野迹象` |
+| logistics_syndicate | `车队势力` |
+
+第二 profile DescriptorLexicon 示例
+
+| 类别 | 标签 |
+|---|---|
+| appearance | `patched_metal`、`sun_bleached` |
+| function | `salvage_routing`、`water_filter` |
+| behavior | `guarded`、`barter_minded` |
+| sensory | `dust_rattle`、`dry_heat` |
+| social_read | `needed`、`owed_debts` |
+| ecological | `water_stress`、`soil_exhaustion` |
+
+边界
+
+| 不做项 | 原因 |
+|---|---|
+| 不改变默认 `WorldState.style_profile_id` | 默认题材仍是现实未来科技 + 异常存在 |
+| 不让 builder 根据第二 profile 改世界生成 | 第四阶段只做可替换性，不做完整多题材世界规则 |
+| 不迁移 event taxonomy | taxonomy 参与规则语义，过早抽象风险高 |
+| 不重写 summaries.py | player/truth 防泄漏风险高，V4-I 只做回归和接口试点 |
+| 不扩大 descriptor AI | V4-H 已证明 AI 可在 approved pool 内选择标签，本轮只证明 pool 可按 profile 切换 |
+
+验证重点
+
+| 验证项 | 标准 |
+|---|---|
+| 默认 profile 回归 | 默认风格关键文本、默认 lexicon、默认 descriptor pool 不变 |
+| 第二 profile 可读 | `get_world_style_profile(post_collapse_frontier)` 返回对应 profile |
+| Prompt 可替换 | `style_profile_prompt_lines(post_collapse_frontier)` 输出边境风格词 |
+| Narrative 可替换 | `get_narrative_lexicon(post_collapse_frontier)` 输出边境显示词 |
+| Descriptor 隔离 | 默认 profile 看不到 `guarded`，第二 profile 看不到默认 `reactive` |
+| AI context | world.style_profile_id 改为第二 profile 后，descriptor AI context 使用第二 profile pool |
+
+后续
+
+| 批次 | 内容 |
+|---|---|
+| V4-Z | 第四阶段封口：总结已完成能力、剩余缺口、第五阶段入口 |
+| 第五阶段 | 半开放结构模板、AI 新结构提案边界、更自由的生成能力后置规划 |

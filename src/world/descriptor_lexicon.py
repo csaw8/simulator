@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from src.world.style_profile import DEFAULT_STYLE_PROFILE_ID
+from src.world.style_profile import (
+    DEFAULT_STYLE_PROFILE_ID,
+    POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+)
 
 
 DESCRIPTOR_CATEGORIES = {
@@ -184,6 +187,7 @@ def _tag(
     category: str,
     allowed_profile_types: tuple[str, ...],
     *,
+    style_id: str = DEFAULT_STYLE_PROFILE_ID,
     conflict_group: str | None = None,
 ) -> DescriptorTag:
     return DescriptorTag(
@@ -192,6 +196,7 @@ def _tag(
         en_label=en_label,
         category=normalize_descriptor_category(category),
         allowed_profile_types=allowed_profile_types,
+        style_constraints=(style_id,),
         conflict_group=conflict_group,
     )
 
@@ -413,5 +418,106 @@ DEFAULT_DESCRIPTOR_LEXICONS: dict[str, DescriptorLexicon] = {
                 ("region_node", "relic", "project", "dynamic_structure", "emergent_presence"),
             ),
         ),
-    )
+    ),
+    POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID: DescriptorLexicon(
+        lexicon_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+        tags=(
+            _tag(
+                "patched_metal",
+                "补丁金属外壳",
+                "patched metal shell",
+                "appearance",
+                ("region_node", "relic", "project", "supply_line", "dynamic_structure"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "sun_bleached",
+                "日晒褪色",
+                "sun bleached",
+                "appearance",
+                ("character", "region_node", "relic", "supply_line", "emergent_presence"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "salvage_routing",
+                "回收路线调度",
+                "salvage routing",
+                "function",
+                ("region_node", "project", "supply_line"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "water_filter",
+                "净水过滤",
+                "water filter",
+                "function",
+                ("region_node", "relic", "project", "supply_line"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "guarded",
+                "戒备",
+                "guarded",
+                "behavior",
+                ("character", "dynamic_structure", "emergent_presence"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "barter_minded",
+                "以交换衡量局势",
+                "barter minded",
+                "behavior",
+                ("character", "dynamic_structure"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "dust_rattle",
+                "尘土中的 rattling 声",
+                "dust rattle",
+                "sensory",
+                ("region_node", "relic", "supply_line", "dynamic_structure", "emergent_presence"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "dry_heat",
+                "干热压迫感",
+                "dry heat",
+                "sensory",
+                ("character", "region_node", "relic", "supply_line", "emergent_presence"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "needed",
+                "被需要",
+                "needed",
+                "social_read",
+                ("character", "region_node", "project", "supply_line"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "owed_debts",
+                "背负欠账",
+                "owed debts",
+                "social_read",
+                ("character", "project", "supply_line", "dynamic_structure"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "water_stress",
+                "水源压力",
+                "water stress",
+                "ecological",
+                ("region_node", "project", "supply_line", "dynamic_structure", "emergent_presence"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+            _tag(
+                "soil_exhaustion",
+                "土壤耗竭",
+                "soil exhaustion",
+                "ecological",
+                ("region_node", "relic", "project", "emergent_presence"),
+                style_id=POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID,
+            ),
+        ),
+    ),
 }

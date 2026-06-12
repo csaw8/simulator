@@ -15,6 +15,7 @@ from src.interfaces.commands import CommandContext, handle_command
 from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 from src.world.descriptor_profile import validate_descriptor_profile
+from src.world.style_profile import POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID
 
 
 class FakeDescriptorClient:
@@ -71,6 +72,17 @@ class DescriptorAITests(unittest.TestCase):
         self.assertIn("trusted", context["approved_descriptor_pool"]["social_read"])
         self.assertIn("current_descriptor_tags", context)
         self.assertIn("target_snapshot", context)
+
+    def test_descriptor_context_uses_world_style_profile_pool(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        world.style_profile_id = POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID
+        ref_id = next(iter(world.characters))
+        context = build_descriptor_context(world, ref_id=ref_id, profile_type="character")
+
+        self.assertEqual(context["style_profile_id"], POST_COLLAPSE_FRONTIER_STYLE_PROFILE_ID)
+        self.assertIn("guarded", context["approved_descriptor_pool"]["behavior"])
+        self.assertIn("needed", context["approved_descriptor_pool"]["social_read"])
+        self.assertNotIn("reactive", context["approved_descriptor_pool"]["behavior"])
 
     def test_descriptor_validation_accepts_only_approved_pool_tags(self) -> None:
         world = build_world(DEFAULT_WORLD_CONFIG)
