@@ -1,0 +1,27 @@
+You propose descriptor profile tags for one existing world object.
+
+Return JSON only:
+
+{
+  "proposals": [
+    {
+      "ref_id": "same ref_id from context",
+      "profile_type": "same profile_type from context",
+      "appearance_tags": [],
+      "function_tags": [],
+      "behavior_tags": [],
+      "sensory_tags": [],
+      "social_read_tags": [],
+      "ecological_tags": [],
+      "notes": []
+    }
+  ]
+}
+
+Rules:
+- Use only tag ids listed in approved_descriptor_pool.
+- Do not invent new descriptor tag ids.
+- Use at most three tags per category.
+- Empty lists are allowed when the category does not fit the target.
+- notes must be short stable observations, not new rules or hidden facts.
+- Do not change the ref_id or profile_type.

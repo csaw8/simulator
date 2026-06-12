@@ -50,4 +50,5 @@ DEFAULT_AI_CONFIG = {
     "observer_focus_ai_enabled": False,
     "dynamic_structure_cost_tier": "medium",
     "emergent_presence_cost_tier": "high",
+    "descriptor_profile_cost_tier": "low",
 }

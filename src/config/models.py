@@ -65,6 +65,7 @@ class AIConfig:
     observer_focus_ai_enabled: bool
     dynamic_structure_cost_tier: str
     emergent_presence_cost_tier: str
+    descriptor_profile_cost_tier: str
 
     def to_dict(self) -> dict[str, object]:
         """Return a plain dictionary for existing integrations."""

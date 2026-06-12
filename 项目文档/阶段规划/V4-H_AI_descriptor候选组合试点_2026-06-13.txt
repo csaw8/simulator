@@ -1,0 +1,83 @@
+V4-H AI descriptor 候选组合试点
+
+日期：2026-06-13
+
+目标
+
+- 让 AI 只从 V4-F approved descriptor pool 中选择 DescriptorProfile 标签组合。
+- 保持手动触发，不自动接入世界 tick。
+- 使用 proposal -> validation -> audit -> apply 流程。
+- 不允许 AI 自由新增 descriptor tag。
+- 不让 descriptor 参与规则核心判断。
+
+本轮实现
+
+| 项 | 内容 |
+|---|---|
+| 新模块 | `src/core/descriptor_ai.py` |
+| 新 prompt | `prompts/descriptor_profile_proposal.txt` |
+| CLI 命令 | `propose descriptor <ref_id> [apply]` |
+| 配置 | `descriptor_profile_cost_tier`，默认 `low` |
+| Dry-run | 调用 AI 并校验 proposal，但不修改 `WorldState` |
+| Apply | 校验通过后只写入 `world.descriptor_profiles[ref_id]` |
+| Audit | 复用 `AIProposalAudit`，`proposal_type=descriptor_profile` |
+| Snapshot | 既有 snapshot 已保存 `descriptor_profiles` 和 `ai_proposal_audits`，无需新增格式 |
+
+Proposal schema
+
+```json
+{
+  "proposals": [
+    {
+      "ref_id": "char_p_01",
+      "profile_type": "character",
+      "appearance_tags": [],
+      "function_tags": [],
+      "behavior_tags": ["reactive"],
+      "sensory_tags": [],
+      "social_read_tags": ["trusted"],
+      "ecological_tags": [],
+      "notes": ["short stable observation"]
+    }
+  ]
+}
+```
+
+校验规则
+
+| 规则 | 说明 |
+|---|---|
+| ref_id 必须存在 | 不存在则拒绝 |
+| ref_id 必须匹配命令目标 | 防止 AI 改写其他对象 |
+| profile_type 必须匹配对象类型 | 例如 character 不能写成 relic |
+| tag 必须来自 approved pool | 非词表标签拒绝 |
+| tag 必须适配 category/profile_type/style | 例如 character 不能使用不适配的 function tag |
+| 每类最多 3 个 tag | 防止 AI 过度堆砌 |
+| notes 限制短文本 | notes 不承载新规则或隐藏事实 |
+
+边界
+
+| 不做项 | 原因 |
+|---|---|
+| 不让 AI 新增 descriptor tag | 自由新增标签放第五阶段后半或更后 |
+| 不自动每 tick 调用 | 避免成本和状态漂移失控 |
+| 不接入 summary 输出 | V4-H 只验证写入闭环，输出接入可后置 |
+| 不改 fixed object 字段 | DescriptorProfile 与固定对象并列存储 |
+| 不产生 Event/Relation | descriptor 是描述档案，不是世界事件 |
+
+测试覆盖
+
+| 测试 | 覆盖 |
+|---|---|
+| `tests/test_descriptor_ai.py` | descriptor context、dry-run、apply、非法 tag 拒绝、CLI、snapshot audit |
+| `tests/test_descriptor_profiles.py` | DescriptorProfile 初始化和保存读取不退化 |
+| `tests/test_descriptor_lexicon.py` | approved pool 校验不退化 |
+| `tests/test_dynamic_structure_ai.py` | 原 dynamic AI proposal 不退化 |
+| `tests/test_emergent_presence_ai.py` | 原 emergent AI proposal 不退化 |
+
+后续
+
+| 批次 | 内容 |
+|---|---|
+| V4-I | 默认 profile 回归与第二 profile 小试点 |
+| V4-Z | 第四阶段封口，整理完成能力、缺口和第五阶段入口 |

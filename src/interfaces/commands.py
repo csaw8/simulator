@@ -16,6 +16,10 @@ from src.core.dynamic_structure_ai import (
     format_dynamic_structure_ai_result,
     propose_dynamic_structures_for_watch,
 )
+from src.core.descriptor_ai import (
+    format_descriptor_ai_result,
+    propose_descriptor_profile_for_ref,
+)
 from src.core.dynamic_structure_targets import format_dynamic_structure_targets
 from src.core.emergent_presence_proposals import (
     apply_emergent_presence_proposals,
@@ -99,6 +103,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch emergent <id> [brief|full] [player|truth] [focus=theme]   Observe an emergent presence\n"
             "  Add propose=dynamic or propose=emergent for dry-run proposals; use apply=dynamic or apply=emergent to write accepted proposals\n"
             "  propose emergent <region_id> [apply]  Create a bounded local emergent-presence sample\n"
+            "  propose descriptor <ref_id> [apply]  Ask AI to choose descriptor tags from the approved pool\n"
             "  targets dynamic [n]     Show high-signal targets for dynamic proposal sampling\n"
             "  audit proposals [n]      Show recent AI proposal audit records\n"
             "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
@@ -200,8 +205,22 @@ def _handle_targets(context: CommandContext, parts: list[str]) -> str:
 
 
 def _handle_propose(context: CommandContext, parts: list[str]) -> str:
-    if len(parts) < 3 or parts[1].lower() != "emergent":
-        return "Usage: propose emergent <region_id> [apply]"
+    if len(parts) < 3:
+        return "Usage: propose emergent <region_id> [apply] | propose descriptor <ref_id> [apply]"
+    if parts[1].lower() == "descriptor":
+        ref_id = parts[2]
+        apply = len(parts) >= 4 and parts[3].lower() == "apply"
+        result = propose_descriptor_profile_for_ref(
+            context.engine.world,
+            ref_id=ref_id,
+            ai_config=context.ai_config.to_dict(),
+            apply=apply,
+        )
+        if apply and result.validation.accepted:
+            save_world_state(context.engine.world, context.snapshot_path)
+        return format_descriptor_ai_result(result)
+    if parts[1].lower() != "emergent":
+        return "Usage: propose emergent <region_id> [apply] | propose descriptor <ref_id> [apply]"
     region_id = parts[2]
     if region_id not in context.engine.world.regions:
         return f"Unknown region: {region_id}"
