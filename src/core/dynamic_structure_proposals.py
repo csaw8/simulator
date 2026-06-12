@@ -90,6 +90,10 @@ def validate_dynamic_structure_proposals(
         if error:
             result.rejected.append(f"proposal[{index}]: {error}")
             continue
+        duplicate_id = _find_duplicate_dynamic_structure(world, raw_proposal)
+        if duplicate_id:
+            result.accepted.append(f"proposal[{index}]->update:{duplicate_id}")
+            continue
         result.accepted.append(f"proposal[{index}]")
     return result
 
@@ -144,11 +148,7 @@ def _apply_one_dynamic_structure_proposal(
     origin: str,
 ) -> tuple[DynamicStructure, Event]:
     action = str(proposal.get("action", "create")).strip().lower()
-    structure_id = (
-        str(proposal.get("structure_id", "")).strip()
-        if action == "update"
-        else _new_dynamic_structure_id(world)
-    )
+    structure_id = _structure_id_for_proposal(world, proposal, action)
     structure = world.dynamic_structures.get(structure_id)
     created = structure is None
     if structure is None:
@@ -167,9 +167,21 @@ def _apply_one_dynamic_structure_proposal(
     structure.summary = _clean_text(proposal["summary"], limit=240)
     structure.status = str(proposal.get("status", "active")).strip().lower() or "active"
     structure.visibility = normalize_event_visibility(str(proposal.get("visibility", "visible")))
-    structure.scope_refs = _clean_ref_list(proposal.get("scope_refs", []), limit=MAX_REFS_PER_PROPOSAL)
-    structure.linked_refs = _clean_ref_list(proposal.get("linked_refs", []), limit=MAX_REFS_PER_PROPOSAL)
-    structure.tags = _clean_tag_list(proposal.get("tags", []), limit=MAX_TAGS_PER_PROPOSAL)
+    structure.scope_refs = _merged_ref_list(
+        structure.scope_refs,
+        _clean_ref_list(proposal.get("scope_refs", []), limit=MAX_REFS_PER_PROPOSAL),
+        limit=MAX_REFS_PER_PROPOSAL,
+    )
+    structure.linked_refs = _merged_ref_list(
+        structure.linked_refs,
+        _clean_ref_list(proposal.get("linked_refs", []), limit=MAX_REFS_PER_PROPOSAL),
+        limit=MAX_REFS_PER_PROPOSAL,
+    )
+    structure.tags = _merged_ref_list(
+        structure.tags,
+        _clean_tag_list(proposal.get("tags", []), limit=MAX_TAGS_PER_PROPOSAL),
+        limit=MAX_TAGS_PER_PROPOSAL,
+    )
     structure.pressure = str(proposal.get("pressure", "medium")).strip().lower()
     structure.updated_tick = world.current_tick
 
@@ -193,6 +205,52 @@ def _apply_one_dynamic_structure_proposal(
         _append_unique(structure.influence_refs, target_ref, limit=12)
     _refresh_dynamic_structure_pressure_threads(world, structure, event)
     return structure, event
+
+
+def _structure_id_for_proposal(world: WorldState, proposal: dict[str, Any], action: str) -> str:
+    if action == "update":
+        return str(proposal.get("structure_id", "")).strip()
+    duplicate_id = _find_duplicate_dynamic_structure(world, proposal)
+    return duplicate_id or _new_dynamic_structure_id(world)
+
+
+def _find_duplicate_dynamic_structure(world: WorldState, proposal: dict[str, Any]) -> str | None:
+    action = str(proposal.get("action", "create")).strip().lower()
+    if action != "create":
+        return None
+    structure_type = str(proposal.get("structure_type", "")).strip().lower()
+    scope_refs = set(_clean_ref_list(proposal.get("scope_refs", []), limit=MAX_REFS_PER_PROPOSAL))
+    linked_refs = set(_clean_ref_list(proposal.get("linked_refs", []), limit=MAX_REFS_PER_PROPOSAL))
+    proposal_refs = scope_refs | linked_refs
+    if not structure_type or not proposal_refs:
+        return None
+
+    candidates: list[DynamicStructure] = []
+    for structure in world.dynamic_structures.values():
+        if structure.status == "archived":
+            continue
+        if structure.structure_type != structure_type:
+            continue
+        existing_scope = set(structure.scope_refs)
+        existing_linked = set(structure.linked_refs)
+        existing_refs = existing_scope | existing_linked
+        scope_overlap = bool(scope_refs & existing_scope)
+        linked_overlap = bool(linked_refs & existing_linked)
+        total_overlap = len(proposal_refs & existing_refs)
+        if scope_overlap and (linked_overlap or total_overlap >= 2):
+            candidates.append(structure)
+
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda structure: (
+            _pressure_rank(structure.pressure),
+            structure.updated_tick,
+            structure.structure_id,
+        ),
+        reverse=True,
+    )
+    return candidates[0].structure_id
 
 
 def _build_dynamic_structure_event(
@@ -278,6 +336,15 @@ def _clean_tag_list(raw_tags: Any, *, limit: int) -> list[str]:
     return tags
 
 
+def _merged_ref_list(existing: list[str], incoming: list[str], *, limit: int) -> list[str]:
+    merged = list(existing)
+    for value in incoming:
+        if value in merged:
+            merged.remove(value)
+        merged.append(value)
+    return merged[-limit:]
+
+
 def _clean_text(raw_text: Any, *, limit: int) -> str:
     text = " ".join(str(raw_text).strip().split())
     return text[:limit].rstrip()
@@ -324,3 +391,7 @@ def _dynamic_structure_pressure_theme(structure: DynamicStructure) -> str:
     if structure.structure_type == "rumor_network":
         return "politics"
     return "macro"
+
+
+def _pressure_rank(pressure: str) -> int:
+    return {"high": 3, "medium": 2, "low": 1}.get(pressure, 0)

@@ -5,7 +5,10 @@ from pathlib import Path
 from src.config.defaults import DEFAULT_AI_CONFIG, DEFAULT_WORLD_CONFIG
 from src.config.models import AIConfig, WorldConfig
 from src.core.ai_context import build_dynamic_structure_context
-from src.core.dynamic_structure_proposals import apply_dynamic_structure_proposals
+from src.core.dynamic_structure_proposals import (
+    apply_dynamic_structure_proposals,
+    validate_dynamic_structure_proposals,
+)
 from src.core.engine import WorldEngine, _refresh_dynamic_structure_lifecycle
 from src.events.models import Event
 from src.events.query import select_events
@@ -46,6 +49,28 @@ def _sample_payload(world):
                 "tags": ["site_accident", "containment", "labor_unrest"],
                 "visibility": "visible",
                 "pressure": "high",
+                "relation_type": "pressures",
+            }
+        ]
+    }
+
+
+def _duplicate_payload(world):
+    return {
+        "proposals": [
+            {
+                "action": "create",
+                "structure_type": "incident_site",
+                "name": "North Lockdown Belt Extended",
+                "summary": "The same disputed perimeter has widened into adjacent logistics choke points.",
+                "scope_refs": [next(iter(world.regions))],
+                "linked_refs": [
+                    next(iter(world.projects)),
+                    next(iter(world.supply_lines)),
+                ],
+                "tags": ["site_accident", "logistics_choke"],
+                "visibility": "visible",
+                "pressure": "medium",
                 "relation_type": "pressures",
             }
         ]
@@ -93,6 +118,43 @@ class DynamicStructureTests(unittest.TestCase):
         self.assertFalse(result.accepted)
         self.assertTrue(result.rejected)
         self.assertFalse(world.dynamic_structures)
+
+    def test_duplicate_dynamic_structure_create_updates_existing_structure(self) -> None:
+        world = _build_world()
+        first_id = apply_dynamic_structure_proposals(world, _sample_payload(world)).accepted[0]
+
+        result = apply_dynamic_structure_proposals(world, _duplicate_payload(world))
+
+        self.assertEqual(result.accepted, [first_id])
+        self.assertEqual(len(world.dynamic_structures), 1)
+        self.assertEqual(world.dynamic_structures[first_id].name, "North Lockdown Belt Extended")
+        self.assertIn(next(iter(world.supply_lines)), world.dynamic_structures[first_id].linked_refs)
+        self.assertTrue(
+            any(
+                event.event_type == "dynamic_structure_updated"
+                and first_id in event.dynamic_structure_refs
+                for event in result.events
+            )
+        )
+
+    def test_duplicate_dynamic_structure_dry_run_marks_update_target(self) -> None:
+        world = _build_world()
+        first_id = apply_dynamic_structure_proposals(world, _sample_payload(world)).accepted[0]
+
+        result = validate_dynamic_structure_proposals(world, _duplicate_payload(world))
+
+        self.assertEqual(result.accepted, [f"proposal[0]->update:{first_id}"])
+        self.assertEqual(len(world.dynamic_structures), 1)
+
+    def test_archived_dynamic_structure_does_not_block_new_create(self) -> None:
+        world = _build_world()
+        first_id = apply_dynamic_structure_proposals(world, _sample_payload(world)).accepted[0]
+        world.dynamic_structures[first_id].status = "archived"
+
+        result = apply_dynamic_structure_proposals(world, _duplicate_payload(world))
+
+        self.assertEqual(len(world.dynamic_structures), 2)
+        self.assertNotEqual(result.accepted, [first_id])
 
     def test_dynamic_structure_summary_and_events_are_player_safe(self) -> None:
         world = _build_world()

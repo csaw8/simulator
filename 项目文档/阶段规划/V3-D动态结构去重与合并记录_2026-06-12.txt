@@ -1,0 +1,68 @@
+Terrarium Project V3-D 动态结构去重与合并记录
+
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-D |
+| 目标 | 避免 AI 对同一对象反复创建相似 DynamicStructure |
+| 原则 | 不新建重系统，在 proposal validation/apply 层做轻量去重 |
+| 处理方式 | 重复 `create` 自动转为更新已有结构 |
+
+二、去重规则
+
+| 条件 | 结果 |
+|---|---|
+| `action=create` |
+| `structure_type` 相同 |
+| 既有结构不是 `archived` |
+| `scope_refs` 有重叠 |
+| `linked_refs` 有重叠，或总 refs 重叠数量不少于 2 |
+
+满足以上条件时：
+
+| 模式 | 行为 |
+|---|---|
+| dry-run validate | accepted 显示 `proposal[0]->update:<existing_id>` |
+| apply | 不创建新 ID，复用已有 `structure_id` |
+| event | 生成 `dynamic_structure_updated` |
+| refs/tags | 与旧结构合并，保持上限裁剪 |
+
+三、边界
+
+| 情况 | 行为 |
+|---|---|
+| archived 旧结构 | 不参与去重，允许创建新结构 |
+| 显式 `action=update` | 仍要求传入已存在 `structure_id` |
+| 类型不同 | 不合并 |
+| scope 不重叠 | 不合并 |
+| 只有单个弱 ref 重叠 | 不合并 |
+
+四、实现范围
+
+| 文件 | 内容 |
+|---|---|
+| `src/core/dynamic_structure_proposals.py` | 新增重复结构查找、create->update 复用、refs/tags 合并 |
+| `tests/test_dynamic_structures.py` | 增加重复 create 更新、dry-run 标记 update、archived 不阻塞新 create 测试 |
+
+五、验证
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_dynamic_structures` | 12 tests OK |
+| `python -m unittest discover -s tests` | 84 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+六、结论
+
+| 项 | 结论 |
+|---|---|
+| V3-D 是否完成 | 完成 |
+| 是否减少重复结构堆积 | 是 |
+| 是否保留归档历史 | 是 |
+| 是否新增重系统 | 否 |
+| 下一步 | V3-E：目标选择策略 |
+
+V3-D 完成后，DynamicStructure 已具备“安全落库、观察融合、生命周期、轻量去重合并”四个基本闭环。下一步应控制哪些对象值得触发 dynamic proposal，避免 AI 调用范围失控。
