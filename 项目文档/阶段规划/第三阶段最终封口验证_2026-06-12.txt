@@ -1,0 +1,69 @@
+第三阶段最终封口验证
+日期：2026-06-12
+
+验证目标
+- 确认 DeepSeek 官方 API 可真实连通。
+- 确认 DynamicStructure AI proposal dry-run 可返回合法 proposal。
+- 确认 EmergentPresence AI proposal dry-run 可返回合法 proposal。
+- 确认 dry-run 不写入 world.dynamic_structures / world.emergent_presences。
+- 确认第三阶段代码测试与编译无回归。
+
+本地验证
+- git status --short
+  - 工作区初始干净。
+- python -m unittest discover -s tests
+  - 111 tests OK。
+- python -m compileall src tests
+  - 通过。
+
+DeepSeek key 检测
+- 当前会话检测到 DEEPSEEK_API_KEY=present。
+
+DeepSeek 最小连通性
+- client provider: deepseek
+- model: deepseek-v4-pro
+- 最小 JSON 请求返回：
+  - {"ok": true, "provider": "deepseek"}
+- 结论：DeepSeek 官方 API 连通正常。
+
+debug llm
+- 命令路径可运行。
+- 返回 source=placeholder。
+- 说明：该命令当前可能受 intent 策略/阈值影响走 fallback 或 placeholder，不适合作为强 live 调用证明。
+- 强 live 证明以底层 JSON 请求和 proposal dry-run 为准。
+
+DynamicStructure live dry-run
+- 配置：dynamic_structure_cost_tier=medium
+- 结果：
+  - source=deepseek
+  - mode=dry-run
+  - accepted=1
+  - rejected=0
+  - payload_present=True
+  - dynamic_count=0
+- 结论：DynamicStructure AI proposal live dry-run 通过，dry-run 不落库。
+
+EmergentPresence live dry-run
+- 第一次配置：emergent_presence_cost_tier=medium
+- 结果：
+  - DeepSeek 已返回内容，但 completion_tokens=220 时 JSON 被截断，parse failed。
+- 修正：
+  - emergent_presence_cost_tier 默认改为 high。
+- 第二次配置：emergent_presence_cost_tier=high
+- 结果：
+  - source=deepseek
+  - mode=dry-run
+  - accepted=1
+  - rejected=0
+  - payload_present=True
+  - emergent_count=0
+- 结论：EmergentPresence AI proposal live dry-run 通过，dry-run 不落库。
+
+配置结论
+- DeepSeek 官方 API 可用。
+- DynamicStructure proposal 使用 medium tier 足够。
+- EmergentPresence proposal JSON 字段更多，默认应使用 high tier，避免 JSON 截断。
+
+第三阶段封口结论
+- 第三阶段主体功能、AI proposal 接入、审计链路、SQLite 导出、文档规划和 DeepSeek live 验证均已完成。
+- 可以进入第四阶段。

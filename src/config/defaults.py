@@ -49,5 +49,5 @@ DEFAULT_AI_CONFIG = {
     "chronicle_signal_threshold": 16,
     "observer_focus_ai_enabled": False,
     "dynamic_structure_cost_tier": "medium",
-    "emergent_presence_cost_tier": "medium",
+    "emergent_presence_cost_tier": "high",
 }
