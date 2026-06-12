@@ -1,0 +1,78 @@
+Terrarium Project V3-A 动态结构 apply 安全抽样记录
+
+日期：2026-06-12
+
+一、抽样目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-A |
+| 目标 | 验证真实 AI dynamic proposal 能通过 `apply=dynamic` 安全落库 |
+| 范围 | 小规模 live 抽样，不批量 apply |
+| 约束 | AI 不直接修改固定对象字段，只能写入 DynamicStructure，并通过 Event / Relation / PressureThread 影响世界 |
+
+二、执行方式
+
+| 项 | 内容 |
+|---|---|
+| 执行环境 | 临时快照上下文 |
+| 是否污染主存档 | 否 |
+| API | SiliconFlow live |
+| 抽样对象 | 从多个 region 计算 proposal signal 后选择最高信号目标 |
+| 目标 region | `region_10` |
+| tick | 4 |
+
+三、live apply 结果
+
+| 验证项 | 结果 |
+|---|---|
+| API key 可读 | 通过 |
+| live source | `siliconflow` |
+| apply 是否成功 | 通过 |
+| accepted | 1 |
+| rejected | 0 |
+| 生成结构 | `dyn_0001` |
+| 生成桥接事件 | 1 条 |
+| 生成 relation | 4 条 |
+| 生成 pressure thread | 5 条 |
+| audit | `audit_00001` |
+| audit error | None |
+
+本次生成结构：
+
+| 字段 | 值 |
+|---|---|
+| structure_id | `dyn_0001` |
+| name | `Vanta Legitimacy Fracture Trace` |
+| type | `anomaly_trace` |
+| pressure | high |
+| source event | `dynamic_structure_created` |
+
+四、安全检查
+
+| 检查项 | 结果 |
+|---|---|
+| 固定对象数量是否不变 | 通过 |
+| 目标 region 是否未被直接改字段 | 通过 |
+| player 输出是否泄漏 `dyn_` | 未泄漏 |
+| player 输出是否泄漏 `pressure_threads:` | 未泄漏 |
+| player 输出是否泄漏 `source_event_refs / influence_refs` | 未泄漏 |
+| truth 输出是否可追踪结构 ID | 通过 |
+| dynamic events 查询是否可追踪 | 通过 |
+
+五、同步修复
+
+| 问题 | 处理 |
+|---|---|
+| `watch dynamic ... player` 中仍出现 `tags:` 字段名 | 已改为 `可见线索:` |
+| 回归测试 | 已增加 player 输出不包含 `tags:` 的断言 |
+
+六、结论
+
+| 项 | 结论 |
+|---|---|
+| V3-A 是否通过 | 通过 |
+| 是否适合批量 apply | 仍不建议 |
+| 下一步 | 进入 V3-B：动态结构观察融合 |
+
+V3-A 的最小验收已经满足：真实 AI 可以生成合法 DynamicStructure，落库路径、事件桥接、关系桥接、压力线桥接和 audit 均可用，且没有直接污染固定结构。

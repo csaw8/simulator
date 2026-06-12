@@ -525,10 +525,11 @@ def summarize_dynamic_structure(
                 )
             )
             lines.append(
-                _view_simple_line(
+                _view_line(
                     player_view=player_view,
-                    label="tags",
-                    value=_truth_tag_list_value(structure.tags, _humanize_enum_token, "None"),
+                    truth_label="tags",
+                    truth_value=_truth_tag_list_value(structure.tags, _humanize_enum_token, "None"),
+                    player_label="可见线索",
                     player_value=_player_tag_list_value(structure.tags, _humanize_enum_token),
                 )
             )

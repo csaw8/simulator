@@ -93,6 +93,8 @@ class DynamicStructureTests(unittest.TestCase):
         )
         self.assertIn("动态线索观察", text)
         self.assertIn("局势线索:", text)
+        self.assertIn("可见线索:", text)
+        self.assertNotIn("tags:", text)
         self.assertNotIn("dyn_", text)
         self.assertNotIn("pressure_threads:", text)
 
@@ -140,6 +142,7 @@ class DynamicStructureTests(unittest.TestCase):
 
         self.assertIn("动态线索观察", output)
         self.assertNotIn("dyn_", output)
+        self.assertNotIn("tags:", output)
 
 
 if __name__ == "__main__":
