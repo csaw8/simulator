@@ -1,0 +1,34 @@
+V4-E NarrativeLexicon 第三切片：组织类型显示名
+
+日期：2026-06-12
+
+目标
+
+- 将 player 视角下的组织类型显示名从 src/narrative/names.py 的硬编码映射迁移到 NarrativeLexicon。
+- 保持当前默认题材不变，默认 profile 仍是 realistic_future_anomaly。
+- 不迁移 rules、builder、taxonomy 或 labels.py 的全量规则词表。
+
+本轮实现
+
+- NarrativeLexicon 新增 faction_type_labels。
+- NarrativeLexicon 新增 faction_type_fallback_label，默认值为“组织势力”。
+- player_faction_type_label 继续作为 player 显示名入口，但显示数据改为读取 get_narrative_lexicon。
+- player_display_name 在渲染自动生成 faction 名称时传入 world.style_profile_id。
+
+边界
+
+- 本轮只处理 player display 层的 faction type 名称。
+- 不改变 faction_type 的内部枚举。
+- 不改变 faction 行为权重、生成逻辑、AI proposal validation 或世界规则。
+- summaries.py 仍通过 names.py 的 player_faction_type_label 间接使用词表，不直接依赖 NarrativeLexicon。
+
+验证
+
+- tests.test_style_profile 覆盖 NarrativeLexicon 中 faction_type_labels 和 fallback。
+- tests.test_style_profile 覆盖 player_faction_type_label 的默认映射与 fallback。
+- tests.test_narrative_summaries 覆盖 faction player view 输出人类可读组织类型，并避免泄露原始 faction_type token。
+
+后续
+
+- V4-E 可视为显示名包装层基本收束。
+- 下一步建议进入 V4-F：DescriptorLexicon 固定描述词表。

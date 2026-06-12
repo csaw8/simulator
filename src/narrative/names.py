@@ -146,20 +146,12 @@ def player_presence_name(relic, style_profile_id: str | None = None) -> str:
     return f"{player_presence_display_name(relic, style_profile_id)}“{player_world_name(relic.name)}”"
 
 
-def player_faction_type_label(faction_type: str) -> str:
-    mapping = {
-        "government": "行政势力",
-        "megacorp": "企业势力",
-        "security_force": "安保势力",
-        "research_institute": "研究势力",
-        "labor_union": "动员势力",
-        "network_cell": "地下网络",
-        "infrastructure_consortium": "工程联合体",
-        "data_cult": "数据教团",
-        "civic_guild": "地方社团",
-        "logistics_syndicate": "物流势力",
-    }
-    return mapping.get(faction_type, "组织势力")
+def player_faction_type_label(faction_type: str, style_profile_id: str | None = None) -> str:
+    lexicon = get_narrative_lexicon(style_profile_id)
+    return lexicon.faction_type_labels.get(
+        faction_type,
+        lexicon.faction_type_fallback_label,
+    )
 
 
 def player_display_name(world: WorldState, ref: str) -> str:
@@ -178,7 +170,7 @@ def player_display_name(world: WorldState, ref: str) -> str:
                 if faction.parent_civ_id in world.civilizations
                 else "所属文明"
             )
-            return f"{civ_name}旗下{player_faction_type_label(faction.faction_type)}"
+            return f"{civ_name}旗下{player_faction_type_label(faction.faction_type, world.style_profile_id)}"
         return player_world_name(faction.name)
     if ref in world.regions:
         return player_world_name(world.regions[ref].name)

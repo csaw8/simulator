@@ -58,6 +58,8 @@ class NarrativeLexicon:
     node_display_prefix: str = "节点"
     dynamic_structure_display_prefix: str = "线索"
     emergent_presence_display_prefix: str = "异常生态迹象"
+    faction_type_labels: dict[str, str] = field(default_factory=dict)
+    faction_type_fallback_label: str = "组织势力"
 
 
 DEFAULT_WORLD_STYLE_PROFILES: dict[str, WorldStyleProfile] = {
@@ -176,6 +178,18 @@ DEFAULT_NARRATIVE_LEXICONS: dict[str, NarrativeLexicon] = {
             "sealed_archive": "封存档案异常",
             "founding_protocol": "奠基协议异常",
             "anomalous_lifeform": "异常生命体",
+        },
+        faction_type_labels={
+            "government": "行政势力",
+            "megacorp": "企业势力",
+            "security_force": "安保势力",
+            "research_institute": "研究势力",
+            "labor_union": "动员势力",
+            "network_cell": "地下网络",
+            "infrastructure_consortium": "工程联合体",
+            "data_cult": "数据教团",
+            "civic_guild": "地方社团",
+            "logistics_syndicate": "物流势力",
         },
     )
 }

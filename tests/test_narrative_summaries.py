@@ -514,6 +514,32 @@ class NarrativeSummaryTests(unittest.TestCase):
         ):
             self.assertNotIn(raw_value, text)
 
+    def test_faction_player_view_uses_humanized_faction_type(self) -> None:
+        text = summarize_faction(
+            self.world,
+            self.faction_id,
+            event_limit=5,
+            mode="full",
+            view="player",
+            focus="summary",
+        )
+        faction = self.world.factions[self.faction_id]
+        known_labels = {
+            "government": "行政势力",
+            "megacorp": "企业势力",
+            "security_force": "安保势力",
+            "research_institute": "研究势力",
+            "labor_union": "动员势力",
+            "network_cell": "地下网络",
+            "infrastructure_consortium": "工程联合体",
+            "data_cult": "数据教团",
+            "civic_guild": "地方社团",
+            "logistics_syndicate": "物流势力",
+        }
+
+        self.assertIn(known_labels.get(faction.faction_type, "组织势力"), text)
+        self.assertNotIn(faction.faction_type, text)
+
     def test_region_player_view_hides_raw_pressure_enums(self) -> None:
         text = summarize_region(
             self.world,

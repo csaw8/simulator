@@ -6,6 +6,7 @@ from src.config.defaults import DEFAULT_WORLD_CONFIG
 from src.core.dynamic_structure_proposals import apply_dynamic_structure_proposals
 from src.core.emergent_presence_proposals import apply_emergent_presence_proposals
 from src.narrative.names import player_display_name
+from src.narrative.names import player_faction_type_label
 from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 from src.world.style_profile import (
@@ -71,6 +72,8 @@ class WorldStyleProfileTests(unittest.TestCase):
         self.assertEqual(lexicon.project_display_prefix, "项目")
         self.assertEqual(lexicon.dynamic_structure_display_prefix, "线索")
         self.assertEqual(lexicon.emergent_presence_display_prefix, "异常生态迹象")
+        self.assertEqual(lexicon.faction_type_labels["government"], "行政势力")
+        self.assertEqual(lexicon.faction_type_fallback_label, "组织势力")
 
     def test_unknown_narrative_lexicon_falls_back_to_default(self) -> None:
         lexicon = get_narrative_lexicon("missing_profile")
@@ -123,6 +126,11 @@ class WorldStyleProfileTests(unittest.TestCase):
         self.assertTrue(player_display_name(world, next(iter(world.region_nodes))).startswith("节点“"))
         self.assertTrue(player_display_name(world, structure_id).startswith("线索“"))
         self.assertTrue(player_display_name(world, presence_id).startswith("异常生态迹象“"))
+
+    def test_player_faction_type_label_uses_narrative_lexicon(self) -> None:
+        self.assertEqual(player_faction_type_label("government"), "行政势力")
+        self.assertEqual(player_faction_type_label("logistics_syndicate"), "物流势力")
+        self.assertEqual(player_faction_type_label("unknown_type"), "组织势力")
 
     def test_world_state_uses_default_style_profile_id(self) -> None:
         world = build_world(DEFAULT_WORLD_CONFIG)
