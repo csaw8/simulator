@@ -1,0 +1,126 @@
+Terrarium Project 第三版任务清单与完成顺序
+
+日期：2026-06-12
+
+一、版本判断
+
+| 项 | 结论 |
+|---|---|
+| 第一版 | 固定结构可运行原型，已完成 |
+| 第二版 | AI 深接入前的固定模型建设与收口，已完成 |
+| 当前是否进入第三版 | 是，已进入第三版前期 |
+| 第三版名称 | AI 动态结构进入世界循环版 |
+| 第三版核心目标 | 让 AI 生成的动态结构在受控条件下长期存在、可观察、可审计，并通过 Event / Relation / PressureThread 影响固定世界 |
+
+第三版不是继续给固定对象堆字段，也不是立刻让 AI 自由改世界 schema。
+
+第三版的正确方向是：
+
+```text
+固定结构保持稳定
+AI 生成 DynamicStructure / 后续半独立实体
+所有写入走 proposal -> validation -> audit -> apply
+所有影响走 Event / Relation / PressureThread
+```
+
+二、第三版当前已完成的前置能力
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| SiliconFlow 真实 API 连通 | 已完成 | 最小 JSON、intent、observer、chronicle、dynamic proposal 均通过 live 抽样 |
+| DynamicStructure 数据层 | 已完成 | `WorldState.dynamic_structures` |
+| DynamicStructure 白名单类型 | 已完成 | `local_group / incident_site / rumor_network / proxy_cell / anomaly_trace` |
+| Proposal 校验与写入 | 已完成 | `apply_dynamic_structure_proposals(...)` |
+| dry-run / apply 命令 | 已完成 | `propose=dynamic` / `apply=dynamic` |
+| AI proposal 审计 | 已完成 | `AIProposalAudit`、`audit proposals`、`audit proposals summary` |
+| 快照保存 | 已完成 | dynamic structures 与 audits 均可保存读取 |
+| live prompt 修复 | 已完成 | 修复 JSON 截断和“候选提案不是权威事实”的提示冲突 |
+
+三、第三版总目标
+
+| 目标 | 验收标准 |
+|---|---|
+| AI 动态结构可安全落库 | `apply=dynamic` 能生成 DynamicStructure / Event / Relation / PressureThread，不污染固定结构 |
+| 动态结构有生命周期 | active / cooling / archived 或同等机制，长跑不会无限堆积 |
+| 动态结构可去重/合并 | 相同地区、相同类型、相同牵连对象不会重复刷出大量结构 |
+| 动态结构进入观察层 | region / faction / relic / project / supply / node 摘要能自然显示相关动态结构 |
+| 动态结构进入决策上下文 | intent / fallback / observer context 能看到相关动态结构 |
+| AI 写回可追踪 | 每次 AI 提案、拒绝、落库、影响对象都有 audit |
+| 可开始半独立新结构 | 在 DynamicStructure 跑稳后，设计 EmergentPresence / AdaptiveLifeform 一类半独立实体 |
+
+四、完成顺序
+
+| 顺序 | 批次 | 任务 | 目标 | 验收 |
+|---:|---|---|---|---|
+| 1 | V3-A | `apply=dynamic` 安全抽样 | 验证真实 AI proposal 能安全落库 | 1-3 条 live apply 生成结构，固定对象字段不被直接改 |
+| 2 | V3-B | 动态结构观察融合 | 让 region/faction/relic/project/supply/node 摘要能提到相关动态结构 | player 不泄漏 `dyn_`，truth 可追踪结构 ID |
+| 3 | V3-C | 动态结构生命周期 | 避免 dynamic structures 无限堆积 | 长跑 50-100 tick 后数量稳定，有 archived/cooling 机制 |
+| 4 | V3-D | 去重与合并 | 避免 AI 重复生成同类结构 | 同 target/type/linked refs 的重复 proposal 被 update 或 reject |
+| 5 | V3-E | 目标选择策略 | 不对所有对象都请求 AI proposal | 只对高 signal 对象建议 proposal，成本可控 |
+| 6 | V3-F | 动态结构进入 intent/observer context | 让角色和观察能感知动态结构 | intent prompt/context 包含相关 dynamic structures |
+| 7 | V3-G | apply 后长跑验收 | 验证动态结构不会破坏固定世界循环 | 全量测试、compileall、30/100 tick 抽样通过 |
+| 8 | V3-H | 半独立实体设计 | 准备新生命存在形式等独立结构 | 输出 EmergentPresence v1 设计，不急于落库 |
+| 9 | V3-I | EmergentPresence v1 | 新生命/异常生态第一版 | 独立数据层、proposal、validator、summary、snapshot、测试 |
+
+五、近期最小执行清单
+
+| 优先级 | 任务 | 说明 |
+|---:|---|---|
+| P0 | live `apply=dynamic` 安全抽样 | 只选 1-2 个高信号 region，不批量 apply |
+| P0 | 验证 apply 后桥接 | 检查 DynamicStructure / Event / Relation / PressureThread / Audit |
+| P0 | player 防泄漏验证 | `watch dynamic ... player` 与相关 region/faction/relic player 摘要不出现内部 ID |
+| P1 | 观察融合第一版 | 在 region full 中显示“动态线索”计数和最高压力 |
+| P1 | 生命周期字段与刷新 | 初版可只做 cooling / archived |
+| P1 | 去重规则 | 同类型、同 scope、重叠 linked refs 的结构不重复创建 |
+| P2 | 目标选择策略 | 根据 recent events / pressure threads / relations 选择对象 |
+
+六、第三版不建议立即做的事
+
+| 不建议 | 原因 |
+|---|---|
+| 立刻新增大量 dynamic structure 类型 | 当前五类还没完成生命周期和去重 |
+| 让 AI 直接修改固定对象字段 | 污染风险高，难回滚 |
+| 自动每步调用 AI 生成结构 | 成本和噪声都会爆炸 |
+| 直接做新生命存在固定结构 | DynamicStructure 还未进入稳定世界循环 |
+| 批量 `apply=dynamic` | 当前 live 样本还少，应先小规模抽样 |
+
+七、何时适合扩展“新的生命存在形式”
+
+| 条件 | 当前状态 |
+|---|---|
+| DynamicStructure 能安全 live apply | 待小规模验证 |
+| 生命周期稳定 | 未完成 |
+| 去重/合并稳定 | 未完成 |
+| 动态结构进入观察层 | 待实现 |
+| 动态结构进入 intent/context | 待实现 |
+
+满足这些条件后，适合开始：
+
+```text
+EmergentPresence v1
+```
+
+候选方向：
+
+| 类型 | 例子 |
+|---|---|
+| 异常生命 | 孢子潮、迁移兽群、菌毯、异常群体 |
+| 合成生命 | 自复制维护体、工业生态、纳米群落 |
+| 信息生命 | 档案寄生体、协议人格、模因生命 |
+| 分布式意识 | 城市级意识、供应链幽灵、网络集群意志 |
+| 半物理存在 | 雾状群体、信号潮、仪式性实体 |
+
+八、第三版当前完成度估算
+
+| 范围 | 完成度 |
+|---|---:|
+| 第三版前置能力 | 约 80% |
+| DynamicStructure proposal 能力 | 约 80% |
+| DynamicStructure 进入世界循环 | 约 45% |
+| AI 结构长期稳定运行 | 约 30% |
+| 适合新增半独立生命结构的准备度 | 约 40% |
+| 第三版整体 | 约 35% |
+
+九、推荐下一条任务提示
+
+继续第三版 V3-A：做 `apply=dynamic` 安全抽样。只选择 1-2 个高信号 region，执行 live apply，验证是否生成 DynamicStructure / Event / Relation / PressureThread / Audit，并确认 player 输出不泄漏内部 ID。不要批量 apply，不要新增固定结构。
