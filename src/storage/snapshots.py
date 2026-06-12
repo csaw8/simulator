@@ -59,6 +59,7 @@ def save_world_state(world: WorldState, path: Path = DEFAULT_SNAPSHOT_PATH) -> N
         },
         "active_event_ids": list(world.active_event_ids),
         "structure_template": asdict(world.structure_template),
+        "style_profile_id": world.style_profile_id,
         "world_tags": list(world.world_tags),
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -73,6 +74,7 @@ def load_world_state(path: Path = DEFAULT_SNAPSHOT_PATH) -> WorldState:
         current_granularity=str(payload["current_granularity"]),
         active_event_ids=list(payload.get("active_event_ids", [])),
         structure_template=StructureTemplate(**payload.get("structure_template", {})),
+        style_profile_id=str(payload.get("style_profile_id", "realistic_future_anomaly")),
         world_tags=list(payload.get("world_tags", [])),
     )
     world.civilizations = {

@@ -1,0 +1,61 @@
+Terrarium Project V4-B WorldStyleProfile 最小数据层记录
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V4-B |
+| 目标 | 建立默认世界风格 profile 的只读数据层 |
+| 默认 profile | realistic_future_anomaly |
+| 改动原则 | 不改变现有输出，不接入 prompt/summary 主路径 |
+| 作用 | 为 V4-C prompt 配置化、V4-D observer voice 配置化、V4-E lexicon 化提供基础 |
+
+二、已实现内容
+
+| 文件 | 内容 |
+|---|---|
+| `src/world/style_profile.py` | 新增 `WorldStyleProfile`、默认 profile、读取接口、序列化接口 |
+| `src/world/state.py` | 新增 `style_profile_id`，默认 `realistic_future_anomaly` |
+| `src/storage/snapshots.py` | snapshot 保存/读取 `style_profile_id`，旧快照缺字段时回退默认 |
+| `tests/test_style_profile.py` | 覆盖默认 profile、未知 profile 回退、序列化、world 初始化、snapshot 保存读取 |
+
+三、默认 profile 内容
+
+| 字段 | 值 |
+|---|---|
+| `style_id` | `realistic_future_anomaly` |
+| `world_style` | `realistic future technology civilization` |
+| `setting_summary` | `future civilizations under infrastructural, organizational, and anomalous pressure` |
+| `technology_level` | `near_to_far_future` |
+| `anomaly_mode` | `exceptional_presence` |
+| `institution_tone` | `bureaucratic, infrastructural, security-conscious` |
+
+四、边界
+
+| 不做 | 原因 |
+|---|---|
+| 不立即改 prompt | V4-C 单独处理，避免一次变更多处 AI 输出 |
+| 不立即改 summary 标题 | V4-E 单独处理，避免破坏 player/truth 测试 |
+| 不新增多题材 profile | V4-I 再做小型第二 profile 试点 |
+| 不改规则 taxonomy | 第四阶段前半不动规则核心 |
+
+五、验收
+
+| 验收项 | 状态 |
+|---|---|
+| 默认 profile 可读取 | 通过 |
+| 未知 profile 回退默认 | 通过 |
+| WorldState 默认带 `style_profile_id` | 通过 |
+| snapshot 保存/读取保留 `style_profile_id` | 通过 |
+| 不改变现有输出路径 | 通过，本批次只新增只读数据 |
+
+六、下一步
+
+推荐进入 V4-C：
+
+```text
+prompt 风格配置化
+```
+
+优先从 `src/agents/prompt_builder.py` 的 `World style: realistic future technology civilization.` 开始，将其替换为 `WorldStyleProfile.world_style`，并增加 prompt 测试确认默认输出仍一致。

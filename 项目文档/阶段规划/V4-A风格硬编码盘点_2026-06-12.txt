@@ -1,0 +1,98 @@
+Terrarium Project V4-A 风格硬编码盘点
+日期：2026-06-12
+
+一、盘点目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V4-A |
+| 目标 | 将当前题材、文风、观察标题、异常/巨构/生态词汇的硬编码点分级 |
+| 原则 | 先分级，不大规模迁移代码 |
+| 默认题材 | realistic_future_anomaly |
+| 重要边界 | 第四阶段不去科幻化，不抽象规则核心，不让 AI 自由新增标签 |
+
+二、分级标准
+
+| 分级 | 含义 | 处理阶段 |
+|---|---|---|
+| profile迁移 | 世界题材、技术等级、异常模式、制度语气等高层风格 | V4-B / V4-C / V4-D |
+| lexicon迁移 | 中文标题、观察块名、实体显示名、player/truth 标签 | V4-E |
+| descriptor迁移 | 外观、功能、行为、感官、社会观感等隐标签词表 | V4-F / V4-G |
+| 规则核心保留 | 参与模拟规则判断的类型、事件、taxonomy、生命周期逻辑 | 第四阶段不迁移 |
+| 暂不迁移 | 改动风险高、收益不明确或依赖后续结构的文案 | 第四阶段后半或第五阶段再评估 |
+
+三、主要硬编码位置
+
+| 文件 | 代表硬编码 | 分级 | 处理建议 |
+|---|---|---|---|
+| `src/agents/prompt_builder.py` | `World style: realistic future technology civilization.` | profile迁移 | V4-C 首批迁移到 `WorldStyleProfile.world_style` |
+| `src/agents/prompt_builder.py` | megastructure project front 的行动建议 | 暂不迁移 | 与 intent 类型和规则强相关，先只记录 |
+| `src/narrative/observer.py` | region / character / civ / faction / relic observer voice 长句 | profile迁移 | V4-D 建 voice map，默认输出语义不变 |
+| `src/narrative/observer.py` | `non-human anomaly or exceptional presence` | profile迁移 | V4-D 从 anomaly_mode / observer voice 读取 |
+| `src/narrative/summaries.py` | `动态线索观察`、`异常生态观察`、`异常观察` | lexicon迁移 | V4-E 先迁移 DynamicStructure / EmergentPresence 标题 |
+| `src/narrative/summaries.py` | `异常落点`、`异常前线`、`生态线索`、`关联异常` | lexicon迁移 | V4-E 分批迁移，测试保持默认文案不变 |
+| `src/narrative/summaries.py` | 大量异常/巨构/项目解释段落 | 暂不迁移 | 文件大、player/truth 风险高，先迁移标题和块名 |
+| `src/narrative/labels.py` | `巨构异常`、`异常生命体`、`异常扩散追猎者` | lexicon迁移 | V4-E / V4-F 视用途拆分到 narrative 或 descriptor |
+| `src/narrative/names.py` | `异常装置`、`巨构异常`、`异常生态迹象` | lexicon迁移 | V4-E 建显示名策略后迁移 |
+| `src/events/visibility_rules.py` | player 事件模糊表达中的异常/巨构模板 | lexicon迁移 | 只迁移词，不改可见性规则 |
+| `src/world/builder.py` | `realistic_future_tech`、megastructure / anomaly bias 初始化 | profile迁移 / 规则核心保留 | world_tags 可接 profile；bias 规则暂保留 |
+| `src/world/frame.py` | `anomaly_bias`、`mixed_exceptional_pressure` | 规则核心保留 | 参与世界结构模板，第四阶段不抽象 |
+| `src/events/taxonomy.py` | `anomaly`、`megastructure`、`anomaly_surges` | 规则核心保留 | taxonomy 参与规则判断，不在 V4 前半迁移 |
+| `src/rules/presence_dynamics.py` | megastructure 生命周期事件 | 规则核心保留 | 当前是固定模型规则，不做题材化 |
+| `src/rules/faction_actions.py` | megastructure / containment / biosecurity 分支 | 规则核心保留 | 行动系统依赖这些类型，暂不迁移 |
+| `src/core/engine.py` | `异常线`、`异常接入`、megastructure posture | 暂不迁移 / 规则核心保留 | 只在 V4 后半评估展示文案，规则分支保留 |
+| `src/core/ai_context.py` | `anomaly_trace` 显示文本和 proposal guidance | profile迁移 / 规则核心保留 | 显示文本可迁移，白名单类型保留 |
+| `prompts/dynamic_structure_proposal.txt` | `anomaly_trace` 类型说明 | 规则核心保留 | 白名单类型是 validator 约束，不在 V4 改名 |
+| `prompts/emergent_presence_proposal.txt` | spore / ecological pressure 等默认题材 schema 示例 | profile迁移 / descriptor迁移 | V4-C 可加入 profile context；V4-F 再集中 descriptor 标签 |
+
+四、优先迁移清单
+
+| 优先级 | 位置 | 原因 | 目标批次 |
+|---:|---|---|---|
+| P0 | `src/agents/prompt_builder.py` 的 `World style` | 单点收益高，风险低 | V4-C |
+| P0 | `src/narrative/observer.py` 的 observer voice | 风格硬耦合最明显 | V4-D |
+| P1 | `summaries.py` 中 DynamicStructure / EmergentPresence 标题 | 新增结构范围小，测试明确 | V4-E |
+| P1 | `names.py` 中异常对象显示名 | player 视角重要，但范围可控 | V4-E |
+| P1 | `labels.py` 中稳定中文标签映射 | 后续 DescriptorLexicon 基础 | V4-E / V4-F |
+| P2 | `visibility_rules.py` player 模糊表达词 | 防泄漏风险高，晚一点迁移 | V4-E 后半 |
+| P2 | `ai_context.py` guidance 文案 | 影响 AI proposal 质量，需 live 验证 | V4-C 后半 |
+
+五、暂不迁移清单
+
+| 位置 | 原因 |
+|---|---|
+| `events/taxonomy.py` 的 event family / bucket | 参与规则判断，过早题材化会破坏稳定性 |
+| `rules/presence_dynamics.py` 的 megastructure 生命周期 | 是当前固定世界模型核心规则 |
+| `rules/faction_actions.py` 的行动分支 | intent / resolver / event fallout 都依赖 |
+| `world/dynamic_structure.py` 的结构类型白名单 | validator 边界，第四阶段不扩结构自由度 |
+| `world/emergent_presence.py` 的 presence type 白名单 | 第三阶段刚封口，第四阶段不改结构类型 |
+| `summaries.py` 大段解释文本 | 文件大且 player/truth 风险高，先迁移标题和块名 |
+
+六、player/truth 风险点
+
+| 位置 | 风险 | 处理 |
+|---|---|---|
+| `summaries.py` | player 输出不能泄漏 `dyn_`、`ep_`、truth 字段 | 每次迁移必须跑相关测试 |
+| `names.py` | player 显示名会包装异常对象和生态迹象 | lexicon 化时保留模糊表达 |
+| `visibility_rules.py` | 事件摘要按视角改写 | 只迁移词表，不改过滤逻辑 |
+| `observer.py` | AI observer 不应泄漏 truth-only 字段 | V4-D 保持现有过滤输入 |
+
+七、结论
+
+V4-A 的结论是：
+
+```text
+先抽 profile 和 observer voice
+再迁移标题和显示名 lexicon
+再建立 descriptor pool
+规则核心中的 anomaly / megastructure / taxonomy 暂不迁移
+第四阶段不削弱默认科幻异常文明风格
+```
+
+下一步应进入：
+
+```text
+V4-B：WorldStyleProfile 最小数据层
+```
+
+V4-B 本轮已同步启动，只建立只读 profile 与 snapshot profile_id，不改变输出路径。

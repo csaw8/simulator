@@ -19,6 +19,7 @@ from src.world.region import Region
 from src.world.region_node import RegionNode
 from src.world.relic import Relic
 from src.world.supply import SupplyLine
+from src.world.style_profile import DEFAULT_STYLE_PROFILE_ID
 
 
 @dataclass(slots=True)
@@ -44,6 +45,7 @@ class WorldState:
     event_stream: EventStream = field(default_factory=EventStream)
     active_event_ids: list[str] = field(default_factory=list)
     structure_template: StructureTemplate = field(default_factory=StructureTemplate)
+    style_profile_id: str = DEFAULT_STYLE_PROFILE_ID
     world_tags: list[str] = field(
         default_factory=lambda: ["realistic_future_tech", "text_first"]
     )
@@ -77,4 +79,5 @@ class WorldState:
             "relations": len(self.relations),
             "events": len(self.event_stream.events),
             "world_frame": self.structure_template.brief_signature(),
+            "style_profile_id": self.style_profile_id,
         }
