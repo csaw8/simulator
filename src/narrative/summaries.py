@@ -44,6 +44,7 @@ from src.world.region_node import RegionNode
 from src.world.relations import relations_for_ref
 from src.world.relic import Relic
 from src.world.state import WorldState
+from src.world.style_profile import get_narrative_lexicon
 from src.world.supply import SupplyLine
 
 _humanize_enum_token = summary_labels.humanize_enum_token
@@ -484,13 +485,14 @@ def summarize_dynamic_structure(
     related_events = _recent_dynamic_structure_events(world, structure, limit=event_limit)
     player_view = is_player_view(view)
     focus = _normalize_summary_focus(focus)
+    lexicon = get_narrative_lexicon(world.style_profile_id)
 
     lines = [
         _summary_title(
             world,
             ref=structure.structure_id,
             player_view=player_view,
-            player_label="动态线索观察",
+            player_label=lexicon.dynamic_structure_player_title,
             truth_title=f"DynamicStructure {structure.name} ({structure.structure_id})",
         )
     ]
@@ -565,13 +567,14 @@ def summarize_emergent_presence(
     related_events = _recent_emergent_presence_events(world, presence, limit=event_limit)
     player_view = is_player_view(view)
     focus = _normalize_summary_focus(focus)
+    lexicon = get_narrative_lexicon(world.style_profile_id)
 
     lines = [
         _summary_title(
             world,
             ref=presence.presence_id,
             player_view=player_view,
-            player_label="异常生态观察",
+            player_label=lexicon.emergent_presence_player_title,
             truth_title=f"EmergentPresence {presence.name} ({presence.presence_id})",
         )
     ]
@@ -633,8 +636,12 @@ def summarize_emergent_presence(
                     player_view=player_view,
                     truth_label="linked_relic_refs",
                     truth_value=_truth_optional_text(_format_entity_refs(world, presence.linked_relic_refs[:6]), "None"),
-                    player_label="异常牵连",
-                    player_value=_player_ref_count_value(presence.linked_relic_refs[:6], "个异常牵连", "外界暂未看出稳定异常牵连"),
+                    player_label=lexicon.emergent_presence_linked_relic_label,
+                    player_value=_player_ref_count_value(
+                        presence.linked_relic_refs[:6],
+                        lexicon.emergent_presence_linked_relic_count_unit,
+                        lexicon.emergent_presence_linked_relic_empty,
+                    ),
                 )
             )
             lines.append(
@@ -642,7 +649,7 @@ def summarize_emergent_presence(
                     player_view=player_view,
                     truth_label="ecological_tags",
                     truth_value=_truth_tag_list_value(presence.ecological_tags, _humanize_enum_token, "None"),
-                    player_label="生态线索",
+                    player_label=lexicon.emergent_presence_ecological_label,
                     player_value=_player_tag_list_value(presence.ecological_tags, _humanize_enum_token),
                 )
             )
@@ -6488,6 +6495,7 @@ def _format_emergent_presence_links_for_ref(
     *,
     player_view: bool,
 ) -> str:
+    lexicon = get_narrative_lexicon(world.style_profile_id)
     presences = [
         presence
         for presence in world.emergent_presences.values()
@@ -6515,7 +6523,11 @@ def _format_emergent_presence_links_for_ref(
         reverse=True,
     )
     if not presences:
-        return "  异常生态: 外界暂未看出稳定生态牵连" if player_view else "  emergent_presences: None"
+        return (
+            f"  {lexicon.emergent_presence_region_label}: {lexicon.emergent_presence_empty_player}"
+            if player_view
+            else f"  {lexicon.emergent_presence_truth_block}: {lexicon.emergent_presence_empty_truth}"
+        )
 
     if player_view:
         type_text = "、".join(
@@ -6524,11 +6536,11 @@ def _format_emergent_presence_links_for_ref(
         )
         strongest = presences[0]
         return (
-            f"  异常生态: 外界能看出 {len(presences)} 组生态牵连，"
+            f"  {lexicon.emergent_presence_region_label}: 外界能看出 {len(presences)} 组生态牵连，"
             f"主要像是{type_text}，最高压力约为{_player_level_value(strongest.pressure)}"
         )
 
-    lines = ["  emergent_presences:"]
+    lines = [f"  {lexicon.emergent_presence_truth_block}:"]
     for presence in presences[:5]:
         lines.append(
             "    - "
@@ -6546,6 +6558,7 @@ def _format_dynamic_structure_links_for_ref(
     *,
     player_view: bool,
 ) -> str:
+    lexicon = get_narrative_lexicon(world.style_profile_id)
     structures = [
         structure
         for structure in world.dynamic_structures.values()
@@ -6567,7 +6580,11 @@ def _format_dynamic_structure_links_for_ref(
         reverse=True,
     )
     if not structures:
-        return "  动态线索: 外界暂未看出稳定动态牵连" if player_view else "  dynamic_structures: None"
+        return (
+            f"  {lexicon.dynamic_structure_region_label}: {lexicon.dynamic_structure_empty_player}"
+            if player_view
+            else f"  {lexicon.dynamic_structure_truth_block}: {lexicon.dynamic_structure_empty_truth}"
+        )
 
     if player_view:
         type_text = "、".join(
@@ -6576,11 +6593,11 @@ def _format_dynamic_structure_links_for_ref(
         )
         strongest = structures[0]
         return (
-            f"  动态线索: 外界能看出 {len(structures)} 条动态牵连，"
+            f"  {lexicon.dynamic_structure_region_label}: 外界能看出 {len(structures)} 条动态牵连，"
             f"主要像是{type_text}，最高压力约为{_player_level_value(strongest.pressure)}"
         )
 
-    lines = ["  dynamic_structures:"]
+    lines = [f"  {lexicon.dynamic_structure_truth_block}:"]
     for structure in structures[:5]:
         lines.append(
             "    - "

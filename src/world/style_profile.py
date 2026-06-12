@@ -32,6 +32,27 @@ class WorldStyleProfile:
         )
 
 
+@dataclass(slots=True)
+class NarrativeLexicon:
+    """Configurable display labels for narrative summaries."""
+
+    lexicon_id: str
+    dynamic_structure_player_title: str
+    dynamic_structure_region_label: str
+    dynamic_structure_truth_block: str
+    dynamic_structure_empty_player: str
+    dynamic_structure_empty_truth: str
+    emergent_presence_player_title: str
+    emergent_presence_region_label: str
+    emergent_presence_truth_block: str
+    emergent_presence_empty_player: str
+    emergent_presence_empty_truth: str
+    emergent_presence_linked_relic_label: str
+    emergent_presence_ecological_label: str
+    emergent_presence_linked_relic_count_unit: str
+    emergent_presence_linked_relic_empty: str
+
+
 DEFAULT_WORLD_STYLE_PROFILES: dict[str, WorldStyleProfile] = {
     DEFAULT_STYLE_PROFILE_ID: WorldStyleProfile(
         style_id=DEFAULT_STYLE_PROFILE_ID,
@@ -125,6 +146,27 @@ DEFAULT_WORLD_STYLE_PROFILES: dict[str, WorldStyleProfile] = {
 }
 
 
+DEFAULT_NARRATIVE_LEXICONS: dict[str, NarrativeLexicon] = {
+    DEFAULT_STYLE_PROFILE_ID: NarrativeLexicon(
+        lexicon_id=DEFAULT_STYLE_PROFILE_ID,
+        dynamic_structure_player_title="动态线索观察",
+        dynamic_structure_region_label="动态线索",
+        dynamic_structure_truth_block="dynamic_structures",
+        dynamic_structure_empty_player="外界暂未看出稳定动态牵连",
+        dynamic_structure_empty_truth="None",
+        emergent_presence_player_title="异常生态观察",
+        emergent_presence_region_label="异常生态",
+        emergent_presence_truth_block="emergent_presences",
+        emergent_presence_empty_player="外界暂未看出稳定生态牵连",
+        emergent_presence_empty_truth="None",
+        emergent_presence_linked_relic_label="异常牵连",
+        emergent_presence_ecological_label="生态线索",
+        emergent_presence_linked_relic_count_unit="个异常牵连",
+        emergent_presence_linked_relic_empty="外界暂未看出稳定异常牵连",
+    )
+}
+
+
 def get_world_style_profile(style_id: str | None = None) -> WorldStyleProfile:
     """Return a known style profile, falling back to the default profile."""
     normalized = (style_id or DEFAULT_STYLE_PROFILE_ID).strip() or DEFAULT_STYLE_PROFILE_ID
@@ -168,3 +210,12 @@ def observer_voice(style_id: str | None, voice_key: str) -> str:
     """Return one configured observer voice instruction."""
     profile = get_world_style_profile(style_id)
     return profile.observer_voices.get(voice_key, profile.default_observer_voice)
+
+
+def get_narrative_lexicon(style_id: str | None = None) -> NarrativeLexicon:
+    """Return the narrative lexicon for a style profile."""
+    normalized = (style_id or DEFAULT_STYLE_PROFILE_ID).strip() or DEFAULT_STYLE_PROFILE_ID
+    return DEFAULT_NARRATIVE_LEXICONS.get(
+        normalized,
+        DEFAULT_NARRATIVE_LEXICONS[DEFAULT_STYLE_PROFILE_ID],
+    )

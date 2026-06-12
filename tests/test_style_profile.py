@@ -7,6 +7,7 @@ from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 from src.world.style_profile import (
     DEFAULT_STYLE_PROFILE_ID,
+    get_narrative_lexicon,
     get_world_style_profile,
     observer_voice,
     style_profile_prompt_lines,
@@ -53,6 +54,21 @@ class WorldStyleProfileTests(unittest.TestCase):
         voice = observer_voice(DEFAULT_STYLE_PROFILE_ID, "missing_voice_key")
 
         self.assertEqual(voice, profile.default_observer_voice)
+
+    def test_narrative_lexicon_contains_dynamic_and_emergent_labels(self) -> None:
+        lexicon = get_narrative_lexicon(DEFAULT_STYLE_PROFILE_ID)
+
+        self.assertEqual(lexicon.dynamic_structure_player_title, "动态线索观察")
+        self.assertEqual(lexicon.dynamic_structure_region_label, "动态线索")
+        self.assertEqual(lexicon.dynamic_structure_truth_block, "dynamic_structures")
+        self.assertEqual(lexicon.emergent_presence_player_title, "异常生态观察")
+        self.assertEqual(lexicon.emergent_presence_region_label, "异常生态")
+        self.assertEqual(lexicon.emergent_presence_truth_block, "emergent_presences")
+
+    def test_unknown_narrative_lexicon_falls_back_to_default(self) -> None:
+        lexicon = get_narrative_lexicon("missing_profile")
+
+        self.assertEqual(lexicon.dynamic_structure_player_title, "动态线索观察")
 
     def test_world_state_uses_default_style_profile_id(self) -> None:
         world = build_world(DEFAULT_WORLD_CONFIG)

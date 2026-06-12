@@ -1,0 +1,68 @@
+Terrarium Project V4-E NarrativeLexicon 首批标题标签层记录
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V4-E |
+| 本轮范围 | 只迁移 DynamicStructure / EmergentPresence 相关观察标题与块名 |
+| 核心目标 | 建立 `NarrativeLexicon`，让标题、块名、player/truth 标签开始从 profile 读取 |
+| 风险控制 | 不重写 `summaries.py` 大段解释文案，不改 player/truth 过滤逻辑 |
+
+二、已实现内容
+
+| 文件 | 改动 |
+|---|---|
+| `src/world/style_profile.py` | 新增 `NarrativeLexicon` 与默认 lexicon |
+| `src/world/style_profile.py` | 新增 `get_narrative_lexicon(...)` |
+| `src/narrative/summaries.py` | `summarize_dynamic_structure` 的 player title 改读 lexicon |
+| `src/narrative/summaries.py` | `summarize_emergent_presence` 的 player title / linked relic / ecological label 改读 lexicon |
+| `src/narrative/summaries.py` | fixed-object summary 中 dynamic/emergent 链接块名改读 lexicon |
+| `tests/test_style_profile.py` | 覆盖默认 lexicon 与 fallback |
+
+三、首批 lexicon 字段
+
+| 字段 | 默认值 |
+|---|---|
+| `dynamic_structure_player_title` | `动态线索观察` |
+| `dynamic_structure_region_label` | `动态线索` |
+| `dynamic_structure_truth_block` | `dynamic_structures` |
+| `dynamic_structure_empty_player` | `外界暂未看出稳定动态牵连` |
+| `emergent_presence_player_title` | `异常生态观察` |
+| `emergent_presence_region_label` | `异常生态` |
+| `emergent_presence_truth_block` | `emergent_presences` |
+| `emergent_presence_empty_player` | `外界暂未看出稳定生态牵连` |
+| `emergent_presence_linked_relic_label` | `异常牵连` |
+| `emergent_presence_ecological_label` | `生态线索` |
+
+四、保留边界
+
+| 保留 | 原因 |
+|---|---|
+| 默认中文输出不变 | 避免破坏当前项目辨识度和已有测试 |
+| player/truth 过滤逻辑不变 | 防止信息差回归 |
+| `dynamic_structures` / `emergent_presences` truth block 默认名不变 | 保持调试和测试稳定 |
+| summary 大段解释文本不迁移 | 风险高，后续按小批次处理 |
+
+五、验收
+
+| 验收项 | 状态 |
+|---|---|
+| DynamicStructure player 标题保持 `动态线索观察` | 通过 |
+| EmergentPresence player 标题保持 `异常生态观察` | 通过 |
+| player 视角不泄漏 `dyn_` / `ep_` | 通过 |
+| truth 视角仍显示 `dynamic_structures` / `emergent_presences` | 通过 |
+| lexicon fallback | 通过 |
+
+六、下一步
+
+V4-E 后续可继续迁移：
+
+```text
+region / relic / project 的主要观察标题和块名
+names.py 中异常对象的 player 显示名包装
+labels.py 中稳定中文标签映射
+```
+
+建议不要一次性重写整个 `summaries.py`，继续按“有测试覆盖的小块”推进。
