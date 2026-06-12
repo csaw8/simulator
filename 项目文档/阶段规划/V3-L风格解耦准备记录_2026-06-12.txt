@@ -1,0 +1,36 @@
+Terrarium Project V3-L 风格解耦准备记录
+
+日期：2026-06-12
+
+一、完成内容
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 硬编码来源盘点 | 完成 | 已定位 builder / prompt_builder / observer / summaries / labels / names |
+| 默认题材边界 | 完成 | `realistic_future_anomaly` 继续作为默认 profile |
+| 第四阶段接口建议 | 完成 | `WorldStyleProfile / NarrativeLexicon / DescriptorLexicon` |
+| 不提前拆系统 | 完成 | V3-L 只做准备，不重写 prompt 和 summary |
+
+二、主要硬编码来源
+
+| 来源 | 示例 | 第四阶段处理建议 |
+|---|---|---|
+| `src/world/builder.py` | `realistic_future_tech`、未来科技命名池 | 进入 `WorldStyleProfile` 和 name pool |
+| `src/agents/prompt_builder.py` | `World style: realistic future technology civilization.` | 从 `WorldStyleProfile.world_style` 读取 |
+| `src/narrative/observer.py` | `Write like ... non-human anomaly` | 从 profile/observer voice 读取 |
+| `src/narrative/summaries.py` | `地区观察 / 异常观察 / 动态线索观察 / 异常生态观察` | 进入 `NarrativeLexicon` |
+| `src/narrative/labels.py` | 类型、字段、事件、人群、前线标签中文映射 | 进入 `NarrativeLexicon / DescriptorLexicon` |
+| `src/narrative/names.py` | player 名称翻译和包装 | 进入 name lexicon / display policy |
+| `src/events/visibility_rules.py` | player 事件模糊表达 | 第四阶段只抽出风格词，不改可见性规则 |
+
+三、第四阶段建议接口
+
+| 接口 | 用途 |
+|---|---|
+| `WorldStyleProfile` | 世界题材、技术等级、异常模式、制度语气 |
+| `NarrativeLexicon` | 观察标题、字段标签、实体显示名包装 |
+| `DescriptorLexicon` | 外观、功能、行为、感官、社会观感标签池 |
+
+四、结论
+
+V3-L 的结论是：第四阶段应该集中管理文风和题材词，不应在第三阶段提前大拆。V3-I 新增的 `EmergentPresence` 已尽量使用通用结构字段，避免继续把题材语义写死到核心 schema。

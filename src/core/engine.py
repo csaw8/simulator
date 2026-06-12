@@ -89,6 +89,7 @@ class WorldEngine:
         _refresh_region_nodes(self.world, all_events)
         _refresh_pressure_threads(self.world, all_events)
         _refresh_dynamic_structure_lifecycle(self.world, all_events)
+        _refresh_emergent_presence_lifecycle(self.world, all_events)
         _refresh_objective_feedback_relations(self.world)
         chronicle = generate_chronicle(all_events, self.ai_config)
         return StepResult(
@@ -1014,6 +1015,36 @@ def _refresh_dynamic_structure_lifecycle(world: WorldState, events: list[Event])
             structure.status = "active"
 
 
+def _refresh_emergent_presence_lifecycle(world: WorldState, events: list[Event]) -> None:
+    direct_event_ticks: dict[str, int] = {}
+    for event in events:
+        for presence_id in event.emergent_presence_refs:
+            direct_event_ticks[presence_id] = max(
+                direct_event_ticks.get(presence_id, event.tick),
+                event.tick,
+            )
+
+    for presence in world.emergent_presences.values():
+        if presence.presence_id in direct_event_ticks:
+            presence.updated_tick = max(
+                presence.updated_tick,
+                direct_event_ticks[presence.presence_id],
+            )
+            if presence.status in {"cooling", "dormant", "archived"}:
+                presence.status = "active"
+            continue
+
+        idle_ticks = world.current_tick - presence.updated_tick
+        if idle_ticks > 28:
+            presence.status = "archived"
+        elif idle_ticks > 14:
+            presence.status = "dormant"
+        elif idle_ticks > 8:
+            presence.status = "cooling"
+        elif presence.status not in {"active", "contained", "cooling", "dormant", "archived"}:
+            presence.status = "active"
+
+
 def _pressure_thread_scope_refs(event: Event) -> list[str]:
     refs: list[str] = []
     for ref in (
@@ -1025,6 +1056,7 @@ def _pressure_thread_scope_refs(event: Event) -> list[str]:
         + event.supply_refs
         + event.node_refs
         + event.dynamic_structure_refs
+        + event.emergent_presence_refs
     ):
         if ref not in refs:
             refs.append(ref)
@@ -1801,6 +1833,8 @@ def _safe_ref_label(world: WorldState, ref: str) -> str:
         return world.characters[ref].name
     if ref in world.dynamic_structures:
         return world.dynamic_structures[ref].name
+    if ref in world.emergent_presences:
+        return world.emergent_presences[ref].name
     return ref
 
 

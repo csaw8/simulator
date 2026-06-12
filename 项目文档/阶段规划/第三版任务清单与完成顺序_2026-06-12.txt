@@ -37,6 +37,7 @@ AI 生成 DynamicStructure / 后续半独立实体
 | live prompt 修复 | 已完成 | 修复 JSON 截断和“候选提案不是权威事实”的提示冲突 |
 | V3-A 到 V3-G | 已完成 | DynamicStructure 安全落库、观察融合、生命周期、去重、目标选择、AI 上下文、长跑验收均已有记录 |
 | V3-H 方向确认 | 已完成 | 用户确认项目走模拟/叙事平衡，第一批 EmergentPresence 走异常生命/生态，AI 创造性后续放宽但强审计 |
+| V3-I 到 V3-M | 已完成 | EmergentPresence v1、SQLite 导出/查询、风格解耦准备、隐标签设计记录均已完成 |
 
 三、第三版总目标
 
@@ -61,12 +62,12 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 5 | V3-E | 目标选择策略 | 不对所有对象都请求 AI proposal | 只对高 signal 对象建议 proposal，成本可控 |
 | 6 | V3-F | 动态结构进入 intent/observer context | 让角色和观察能感知动态结构 | intent prompt/context 包含相关 dynamic structures |
 | 7 | V3-G | apply 后长跑验收 | 验证动态结构不会破坏固定世界循环 | 全量测试、compileall、30/100 tick 抽样通过 |
-| 8 | V3-H | 半独立实体设计 | 准备新生命存在形式等独立结构 | 输出 EmergentPresence v1 设计，不急于落库 |
-| 9 | V3-I | EmergentPresence v1 | 新生命/异常生态第一版 | 独立数据层、proposal、validator、summary、snapshot、测试 |
-| 10 | V3-J | SQLite 导出器与基础查询 | 为长期事件、关系、审计和动态结构提供查询层 | 不替代 JSON 快照，可导出 events / relations / dynamic_structures / audits |
-| 11 | V3-K | SQLite 增量 ledger 与审计分析 | 为长跑和 AI proposal 质量分析提供持久记录 | 支持 db stats / db audits / db dynamics 等查询 |
-| 12 | V3-L | 风格解耦准备 | 为第四阶段 WorldStyleProfile / NarrativeLexicon 做盘点和边界设计 | 输出硬编码清单、默认题材词表、第四阶段接口建议 |
-| 13 | V3-M | 隐标签与描述档案层设计 | 为人物性格、建筑外观、物品功能、异常感官特征建立轻量 DescriptorProfile 规划 | 输出 descriptor 字段边界、固定池来源、AI 参与初始化边界 |
+| 8 | V3-H | 半独立实体设计 | 准备新生命存在形式等独立结构 | 已完成，见 `V3-H半独立实体设计_2026-06-12.txt` |
+| 9 | V3-I | EmergentPresence v1 | 新生命/异常生态第一版 | 已完成，独立数据层、proposal、validator、summary、snapshot、测试 |
+| 10 | V3-J | SQLite 导出器与基础查询 | 为长期事件、关系、审计和动态结构提供查询层 | 已完成，支持 events / relations / dynamic_structures / emergent_presences / audits |
+| 11 | V3-K | SQLite 增量 ledger 与审计分析 | 为长跑和 AI proposal 质量分析提供持久记录 | 已完成最小查询层，支持 `db export` / `db stats` |
+| 12 | V3-L | 风格解耦准备 | 为第四阶段 WorldStyleProfile / NarrativeLexicon 做盘点和边界设计 | 已完成，见 `V3-L风格解耦准备记录_2026-06-12.txt` |
+| 13 | V3-M | 隐标签与描述档案层设计 | 为人物性格、建筑外观、物品功能、异常感官特征建立轻量 DescriptorProfile 规划 | 已完成，见 `V3-M隐标签与描述档案设计记录_2026-06-12.txt` |
 
 五、近期最小执行清单
 
@@ -123,12 +124,13 @@ EmergentPresence v1
 
 | 范围 | 完成度 |
 |---|---:|
-| 第三版前置能力 | 约 80% |
+| 第三版前置能力 | 100% |
 | DynamicStructure proposal 能力 | 约 90% |
-| DynamicStructure 进入世界循环 | 约 85% |
-| AI 结构长期稳定运行 | 约 75% |
-| 适合新增半独立生命结构的准备度 | 约 80% |
-| 第三版整体 | 约 55%（因 V3-H 到 V3-M 已扩展第三阶段后半任务） |
+| DynamicStructure 进入世界循环 | 约 90% |
+| EmergentPresence v1 | 约 80%（AI live adapter 暂未接入，核心闭环已完成） |
+| SQLite 查询层 | 约 80%（最小导出/统计完成，深查询可后续扩展） |
+| 风格/隐标签准备 | 100% |
+| 第三版整体 | 约 95%（第三阶段目标完成，剩余只是不属于第三阶段的第四/第五阶段深化） |
 
 九、推荐下一条任务提示
 
@@ -140,7 +142,7 @@ V3-H 已形成设计文档：
 项目文档/阶段规划/V3-H半独立实体设计_2026-06-12.txt
 ```
 
-后续实际开发应进入 V3-I：`EmergentPresence v1`。
+V3-I 到 V3-M 已完成。后续实际开发应进入第四阶段：风格解耦与题材配置。
 
 十、第四阶段预留：风格解耦与题材配置
 

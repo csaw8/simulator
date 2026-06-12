@@ -17,6 +17,10 @@ from src.core.dynamic_structure_ai import (
     propose_dynamic_structures_for_watch,
 )
 from src.core.dynamic_structure_targets import format_dynamic_structure_targets
+from src.core.emergent_presence_proposals import (
+    apply_emergent_presence_proposals,
+    validate_emergent_presence_proposals,
+)
 from src.events.query import select_events
 from src.events.taxonomy import event_matches_focus
 from src.interfaces.stream_view import (
@@ -40,11 +44,13 @@ from src.narrative.summaries import (
     summarize_region,
     summarize_region_node,
     summarize_dynamic_structure,
+    summarize_emergent_presence,
     summarize_relic,
     summarize_supply_line,
 )
 from src.narrative.visibility import PLAYER_VIEW, TRUTH_VIEW, is_player_view, normalize_view
 from src.storage.snapshots import save_world_state
+from src.storage.db import DEFAULT_SQLITE_PATH, export_world_to_sqlite, format_sqlite_stats
 from src.world.builder import build_world
 
 
@@ -86,13 +92,17 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch relic <id> [brief|full] [player|truth] [focus=theme]      Observe a relic\n"
             "  watch supply <id> [brief|full] [player|truth] [focus=theme]     Observe a supply line\n"
             "  watch dynamic <id> [brief|full] [player|truth] [focus=theme]    Observe a dynamic structure\n"
+            "  watch emergent <id> [brief|full] [player|truth] [focus=theme]   Observe an emergent presence\n"
             "  Add propose=dynamic for dry-run dynamic proposals, or apply=dynamic to write accepted proposals\n"
+            "  propose emergent <region_id> [apply]  Create a bounded local emergent-presence sample\n"
             "  targets dynamic [n]     Show high-signal targets for dynamic proposal sampling\n"
             "  audit proposals [n]      Show recent AI proposal audit records\n"
             "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
             "  debug llm         Test one live SiliconFlow request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
             "  save              Save the current world snapshot\n"
+            "  db export [path]  Export current state to SQLite query DB\n"
+            "  db stats [path]   Show SQLite table counts\n"
             "  quit              Exit the CLI"
         )
 
@@ -117,8 +127,14 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
     if action == "targets":
         return _handle_targets(context, parts)
 
+    if action == "propose":
+        return _handle_propose(context, parts)
+
     if action == "debug":
         return _handle_debug(context, parts)
+
+    if action == "db":
+        return _handle_db(context, parts)
 
     if action == "reset":
         world = build_world(context.world_config.to_dict())
@@ -179,6 +195,88 @@ def _handle_targets(context: CommandContext, parts: list[str]) -> str:
     return format_dynamic_structure_targets(context.engine.world, limit=limit)
 
 
+def _handle_propose(context: CommandContext, parts: list[str]) -> str:
+    if len(parts) < 3 or parts[1].lower() != "emergent":
+        return "Usage: propose emergent <region_id> [apply]"
+    region_id = parts[2]
+    if region_id not in context.engine.world.regions:
+        return f"Unknown region: {region_id}"
+    apply = len(parts) >= 4 and parts[3].lower() == "apply"
+    payload = _build_sample_emergent_presence_payload(context, region_id)
+    result = (
+        apply_emergent_presence_proposals(
+            context.engine.world,
+            payload,
+            origin="manual_cli",
+        )
+        if apply
+        else validate_emergent_presence_proposals(context.engine.world, payload)
+    )
+    if apply and result.accepted:
+        save_world_state(context.engine.world, context.snapshot_path)
+    lines = ["Emergent presence proposal:"]
+    lines.append(f"  mode: {'apply' if apply else 'dry-run'}")
+    lines.append(f"  accepted: {len(result.accepted)}")
+    lines.append(f"  rejected: {len(result.rejected)}")
+    for item in result.accepted[:3]:
+        lines.append(f"    accepted_ref: {item}")
+    for item in result.rejected[:3]:
+        lines.append(f"    rejected_reason: {item}")
+    return "\n".join(lines)
+
+
+def _build_sample_emergent_presence_payload(context: CommandContext, region_id: str) -> dict[str, object]:
+    world = context.engine.world
+    relic_refs = [
+        relic.relic_id
+        for relic in world.relics.values()
+        if relic.current_region_id == region_id
+    ][:2]
+    dynamic_refs = [
+        structure.structure_id
+        for structure in world.dynamic_structures.values()
+        if region_id in structure.scope_refs + structure.linked_refs
+    ][:2]
+    return {
+        "proposals": [
+            {
+                "action": "create",
+                "presence_type": "spore_bloom",
+                "name": f"Trace Bloom {region_id}",
+                "summary": "A bounded anomalous ecological pressure is forming around a visible containment edge.",
+                "home_region_ref": region_id,
+                "current_region_refs": [region_id],
+                "linked_relic_refs": relic_refs,
+                "linked_dynamic_refs": dynamic_refs,
+                "linked_faction_refs": [],
+                "lifecycle_stage": "forming",
+                "population_scale": "trace",
+                "adaptation_level": "low",
+                "mobility": "local",
+                "pressure": "medium",
+                "behavior_tags": ["reactive"],
+                "sensory_tags": ["spore_haze"],
+                "ecological_tags": ["biosecurity_risk"],
+                "visibility": "rumored",
+                "relation_type": "nests_in",
+            }
+        ]
+    }
+
+
+def _handle_db(context: CommandContext, parts: list[str]) -> str:
+    if len(parts) < 2:
+        return "Usage: db export [path] | db stats [path]"
+    subcommand = parts[1].lower()
+    path = Path(parts[2]) if len(parts) >= 3 else DEFAULT_SQLITE_PATH
+    if subcommand == "export":
+        export_world_to_sqlite(context.engine.world, path)
+        return f"SQLite export written to {path}"
+    if subcommand == "stats":
+        return format_sqlite_stats(path)
+    return "Usage: db export [path] | db stats [path]"
+
+
 def _handle_frame(context: CommandContext, parts: list[str]) -> str:
     mode = "brief"
     view = TRUTH_VIEW
@@ -232,7 +330,7 @@ def _parse_events_args(parts: list[str]) -> dict[str, str | int | None]:
     """Parse `events` command arguments."""
     usage = (
         "Usage: events [n] [brief|full] [player|truth] [focus=theme] | "
-        "events <region|character|civ|faction|relic|dynamic> <id> [n] [brief|full] [player|truth] [focus=theme]"
+        "events <region|character|civ|faction|relic|dynamic|emergent> <id> [n] [brief|full] [player|truth] [focus=theme]"
     )
     result: dict[str, str | int | None] = {
         "target_type": None,
@@ -280,8 +378,8 @@ def _parse_events_args(parts: list[str]) -> dict[str, str | int | None]:
             return result
         return result
 
-    if first not in {"region", "character", "civ", "faction", "relic", "dynamic", "structure"}:
-        result["error"] = "Unknown event focus. Use 'region', 'character', 'civ', 'faction', 'relic', or 'dynamic'."
+    if first not in {"region", "character", "civ", "faction", "relic", "dynamic", "structure", "emergent", "emergent_presence"}:
+        result["error"] = "Unknown event focus. Use 'region', 'character', 'civ', 'faction', 'relic', 'dynamic', or 'emergent'."
         return result
 
     if len(args) < 2:
@@ -445,6 +543,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             "watch relic <id> [brief|full] [player|truth] [focus=theme] | "
             "watch supply <id> [brief|full] [player|truth] [focus=theme]"
             " | watch dynamic <id> [brief|full] [player|truth] [focus=theme]"
+            " | watch emergent <id> [brief|full] [player|truth] [focus=theme]"
         )
 
     target_type = parts[1].lower()
@@ -742,7 +841,27 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             dynamic_proposal_mode=dynamic_proposal_mode,
         )
 
-    return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', 'supply', or 'dynamic'."
+    if target_type in {"emergent", "emergent_presence"}:
+        output = summarize_emergent_presence(
+            context.engine.world,
+            target_id,
+            event_limit=event_limit,
+            mode=mode,
+            view=view,
+            focus=focus,
+        )
+        save_world_state(context.engine.world, context.snapshot_path)
+        return _append_dynamic_structure_proposal_if_requested(
+            context,
+            output,
+            target_type=target_type,
+            target_id=target_id,
+            mode=mode,
+            view=view,
+            dynamic_proposal_mode=dynamic_proposal_mode,
+        )
+
+    return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', 'supply', 'dynamic', or 'emergent'."
 
 
 def _append_dynamic_structure_proposal_if_requested(

@@ -37,8 +37,12 @@
 - `watch supply supply_01 full truth`
 - `watch dynamic dyn_0001 full truth`
 - `watch dynamic dyn_0001 full player`
+- `watch emergent ep_0001 full truth`
+- `watch emergent ep_0001 full player`
 - `watch region region_04 full truth propose=dynamic`
 - `watch region region_04 full truth apply=dynamic`
+- `propose emergent region_04`
+- `propose emergent region_04 apply`
 - `targets dynamic`
 - `targets dynamic 5`
 - `audit proposals`
@@ -58,6 +62,10 @@
 五、调试命令
 
 - `debug llm`
+- `db export`
+- `db stats`
+- `db export data/world_ledger.sqlite3`
+- `db stats data/world_ledger.sqlite3`
 
 说明：
 

@@ -102,4 +102,6 @@ def _build_matcher(target_type: str):
         return lambda event, target_id: target_id in event.relic_refs
     if normalized in {"dynamic", "structure"}:
         return lambda event, target_id: target_id in event.dynamic_structure_refs
+    if normalized in {"emergent", "emergent_presence"}:
+        return lambda event, target_id: target_id in event.emergent_presence_refs
     return None

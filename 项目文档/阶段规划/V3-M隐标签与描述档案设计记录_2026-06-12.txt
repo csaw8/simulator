@@ -1,0 +1,35 @@
+Terrarium Project V3-M 隐标签与描述档案设计记录
+
+日期：2026-06-12
+
+一、完成内容
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 隐标签问题定义 | 完成 | 人物性格、建筑外观、物品功能、感官特征等当前分散存在 |
+| 推荐结构 | 完成 | `DescriptorProfile` |
+| 词表归属 | 完成 | 第四阶段纳入 `DescriptorLexicon` |
+| AI 参与边界 | 完成 | AI 可选标签/调权，自由新增标签放第五阶段后半或第六阶段 |
+| 与 V3-I 关系 | 完成 | EmergentPresence 已预留 behavior/sensory/ecological tags |
+
+二、当前已落地的轻量接口
+
+| 对象 | 已有字段 |
+|---|---|
+| Character | `role_tags / capability_tags / desire_tags / fear_tags / agency_mode` |
+| Relic | `story_tags / origin_mode / construction_state / activation_state` |
+| RegionNode | `node_type / tags / recent_notes` |
+| DynamicStructure | `tags / structure_type / pressure / visibility` |
+| EmergentPresence | `behavior_tags / sensory_tags / ecological_tags` |
+
+三、后续实现建议
+
+| 阶段 | 建议 |
+|---|---|
+| 第四阶段 | 建立 `DescriptorLexicon`，把标签池集中管理 |
+| 第四阶段后半 | 可让 AI 从 approved descriptor pool 选择标签或建议权重 |
+| 第五阶段后半/第六阶段 | 才考虑 `DescriptorTagProposal`，让 AI 提议新标签 |
+
+四、结论
+
+V3-M 已完成设计收口。第三阶段不需要实现完整 DescriptorProfile 数据层；当前更重要的是保证 V3-I 的 EmergentPresence 标签字段不要继续扩大硬编码债务，并把正式词表化留给第四阶段。

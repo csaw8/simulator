@@ -1,0 +1,45 @@
+Terrarium Project V3-J / V3-K SQLite 导出与审计查询实现记录
+
+日期：2026-06-12
+
+一、完成内容
+
+| 批次 | 项 | 状态 | 说明 |
+|---|---|---|---|
+| V3-J | SQLite 只读导出器 | 完成 | `src/storage/db.py` |
+| V3-J | 基础表结构 | 完成 | events / relations / dynamic_structures / emergent_presences / ai_proposal_audits |
+| V3-J | CLI 导出 | 完成 | `db export [path]` |
+| V3-J | CLI 统计 | 完成 | `db stats [path]` |
+| V3-K | 审计查询基础 | 完成 | `ai_proposal_audits` 表进入 SQLite |
+| V3-K | 动态/半独立结构查询基础 | 完成 | dynamic_structures / emergent_presences 表进入 SQLite |
+| V3-K | 长跑分析基础 | 完成 | events / relations / pressure 相关 payload 可从 SQLite 查询 |
+
+二、设计边界
+
+| 边界 | 说明 |
+|---|---|
+| JSON 快照仍是权威 | SQLite 只是导出查询层 |
+| 不替代 WorldState | 不从 SQLite 反向恢复世界 |
+| 不为每类模板建新表 | 半开放结构阶段前保持通用 payload_json |
+| 不让 AI 直接写库 | AI 仍走 proposal -> validation -> audit -> apply |
+
+三、表结构
+
+| 表 | 用途 |
+|---|---|
+| `events` | 查询事件时间线、类型、可见性、payload |
+| `relations` | 查询对象关系和强度 |
+| `dynamic_structures` | 查询 DynamicStructure 当前状态 |
+| `emergent_presences` | 查询 EmergentPresence 当前状态 |
+| `ai_proposal_audits` | 查询 AI proposal 质量与错误 |
+
+四、验证
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_sqlite_export` | 2 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+五、结论
+
+V3-J / V3-K 已完成最小查询层。后续如果需要更复杂的 `db audits`、`db dynamics`、`db emergents` 命令，可以在现有 SQLite 表上继续加只读查询，不需要改变世界权威存储。

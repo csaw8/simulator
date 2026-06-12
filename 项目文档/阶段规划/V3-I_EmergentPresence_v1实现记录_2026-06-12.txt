@@ -1,0 +1,43 @@
+Terrarium Project V3-I EmergentPresence v1 实现记录
+
+日期：2026-06-12
+
+一、完成内容
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 数据层 | 完成 | 新增 `src/world/emergent_presence.py` |
+| WorldState | 完成 | 新增 `WorldState.emergent_presences` |
+| 快照 | 完成 | `save_world_state / load_world_state` 支持 emergent presences |
+| Event refs | 完成 | `Event.emergent_presence_refs` |
+| proposal / validator / apply | 完成 | 新增 `src/core/emergent_presence_proposals.py` |
+| 影响桥接 | 完成 | apply 后生成 Event / Relation / PressureThread |
+| summary | 完成 | 新增 `summarize_emergent_presence(...)` |
+| CLI watch | 完成 | `watch emergent <id> full player/truth` |
+| CLI sample proposal | 完成 | `propose emergent <region_id> [apply]` |
+| region 融合 | 完成 | region full 摘要显示 `异常生态` / `emergent_presences` |
+| 生命周期 | 完成 | active / cooling / dormant / archived |
+| player 防泄漏 | 完成 | player 不显示 `ep_` 和 truth 字段名 |
+| 测试 | 完成 | `tests/test_emergent_presences.py` |
+
+二、第一版边界
+
+| 边界 | 说明 |
+|---|---|
+| 类型白名单 | `spore_bloom / migrant_swarm / mycelial_mat / feral_cluster / signal_biota` |
+| 批量限制 | 每批最多 2 条 proposal |
+| 标签限制 | 每类标签最多 6 个，AI 不能自由新增标签 |
+| 写入边界 | 不直接修改 region / relic / project / supply / faction 字段 |
+| 影响通道 | 只通过 Event / Relation / PressureThread / Summary |
+| AI live adapter | 暂未接入，避免 V3-I 过宽；后续可按 DynamicStructure adapter 复用 |
+
+三、验证
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_emergent_presences` | 7 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+四、结论
+
+`EmergentPresence v1` 已达到第三阶段要求：它是与 Relic、DynamicStructure 并列的半独立异常生态实体，可落库、可观察、可追踪、可保存、可通过桥接影响世界，并保持 player/truth 信息差。

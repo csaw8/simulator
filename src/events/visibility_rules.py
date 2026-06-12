@@ -135,6 +135,7 @@ def collect_event_refs(event: Event) -> list[str]:
     refs.extend(f"supply:{ref}" for ref in event.supply_refs)
     refs.extend(f"node:{ref}" for ref in event.node_refs)
     refs.extend(f"dynamic:{ref}" for ref in event.dynamic_structure_refs)
+    refs.extend(f"emergent:{ref}" for ref in event.emergent_presence_refs)
     return refs
 
 

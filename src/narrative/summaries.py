@@ -39,6 +39,7 @@ from src.world.presence import (
 )
 from src.world.project import ProjectNetwork
 from src.world.dynamic_structure import DynamicStructure
+from src.world.emergent_presence import EmergentPresence
 from src.world.region_node import RegionNode
 from src.world.relations import relations_for_ref
 from src.world.relic import Relic
@@ -344,6 +345,7 @@ def summarize_region(
         lines.append(_format_region_nodes_for_region(world, region.region_id, player_view=player_view))
         lines.append(_format_pressure_threads_for_ref(world, region.region_id, player_view=player_view))
         lines.append(_format_dynamic_structure_links_for_ref(world, region.region_id, player_view=player_view))
+        lines.append(_format_emergent_presence_links_for_ref(world, region.region_id, player_view=player_view))
         lines.append(_format_region_ambient_people(world, region.region_id, view=view))
         lines.append(_format_region_ambient_details(world, region.region_id, view=view))
         lines.append(
@@ -380,6 +382,7 @@ def summarize_region(
         )
         lines.append(_format_region_nodes_for_region(world, region.region_id, player_view=player_view))
         lines.append(_format_pressure_threads_for_ref(world, region.region_id, player_view=player_view))
+        lines.append(_format_emergent_presence_links_for_ref(world, region.region_id, player_view=player_view))
     lines.append(_format_related_events(world, related_events, view=view))
     return "\n".join(lines)
 
@@ -542,6 +545,114 @@ def summarize_dynamic_structure(
             )
             lines.append(_format_pressure_threads_for_ref(world, structure.structure_id, player_view=player_view))
     if _focus_matches(focus, "events", "summary", "front", "recent", "structure"):
+        lines.append(_format_related_events(world, related_events, view=view))
+    return "\n".join(lines)
+
+
+def summarize_emergent_presence(
+    world: WorldState,
+    presence_id: str,
+    event_limit: int = 5,
+    mode: str = "brief",
+    view: str = "truth",
+    focus: str | None = None,
+) -> str:
+    """Return a compact summary for one semi-independent emergent presence."""
+    presence = world.emergent_presences.get(presence_id)
+    if presence is None:
+        return f"Unknown emergent presence: {presence_id}"
+
+    related_events = _recent_emergent_presence_events(world, presence, limit=event_limit)
+    player_view = is_player_view(view)
+    focus = _normalize_summary_focus(focus)
+
+    lines = [
+        _summary_title(
+            world,
+            ref=presence.presence_id,
+            player_view=player_view,
+            player_label="异常生态观察",
+            truth_title=f"EmergentPresence {presence.name} ({presence.presence_id})",
+        )
+    ]
+    lines.append(
+        _view_simple_line(
+            player_view=player_view,
+            label="type",
+            value=_emergent_presence_type_label(presence.presence_type),
+            player_value=_emergent_presence_type_label(presence.presence_type),
+        )
+    )
+    lines.append(_view_simple_line(player_view=player_view, label="status", value=_player_status_value(presence.status), player_value=_player_status_value(presence.status)))
+    lines.append(_view_simple_line(player_view=player_view, label="pressure", value=_player_level_value(presence.pressure), player_value=_player_level_value(presence.pressure)))
+    lines.append(
+        "  概述: 外界只能看见一组持续扩散或收束的异常生态迹象"
+        if player_view
+        else f"  summary: {presence.summary}"
+    )
+    if mode == "full":
+        if _focus_matches(focus, "summary", "presence", "front"):
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="lifecycle_stage",
+                    truth_value=_emergent_presence_stage_label(presence.lifecycle_stage),
+                    player_label="生态阶段",
+                    player_value=_emergent_presence_stage_label(presence.lifecycle_stage),
+                )
+            )
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="population_scale",
+                    truth_value=_emergent_presence_scale_label(presence.population_scale),
+                    player_label="可见规模",
+                    player_value=_emergent_presence_scale_label(presence.population_scale),
+                )
+            )
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="mobility",
+                    truth_value=_emergent_presence_mobility_label(presence.mobility),
+                    player_label="移动迹象",
+                    player_value=_emergent_presence_mobility_label(presence.mobility),
+                )
+            )
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="current_region_refs",
+                    truth_value=_truth_optional_text(_format_entity_refs(world, presence.current_region_refs[:6]), "None"),
+                    player_label="出没范围",
+                    player_value=_player_ref_count_value(presence.current_region_refs[:6], "片可见范围", "外界暂未看出稳定出没范围"),
+                )
+            )
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="linked_relic_refs",
+                    truth_value=_truth_optional_text(_format_entity_refs(world, presence.linked_relic_refs[:6]), "None"),
+                    player_label="异常牵连",
+                    player_value=_player_ref_count_value(presence.linked_relic_refs[:6], "个异常牵连", "外界暂未看出稳定异常牵连"),
+                )
+            )
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="ecological_tags",
+                    truth_value=_truth_tag_list_value(presence.ecological_tags, _humanize_enum_token, "None"),
+                    player_label="生态线索",
+                    player_value=_player_tag_list_value(presence.ecological_tags, _humanize_enum_token),
+                )
+            )
+            lines.append(
+                _player_relation_block(world, presence.presence_id, label="关系迹象")
+                if player_view
+                else _format_relation_block(world, presence.presence_id, limit=8)
+            )
+            lines.append(_format_pressure_threads_for_ref(world, presence.presence_id, player_view=player_view))
+    if _focus_matches(focus, "events", "summary", "front", "recent", "presence"):
         lines.append(_format_related_events(world, related_events, view=view))
     return "\n".join(lines)
 
@@ -6282,6 +6393,40 @@ def _recent_dynamic_structure_events(
     return events[-limit:]
 
 
+def _recent_emergent_presence_events(
+    world: WorldState,
+    presence: EmergentPresence,
+    *,
+    limit: int,
+) -> list[Event]:
+    linked_refs = set(
+        presence.current_region_refs
+        + presence.linked_relic_refs
+        + presence.linked_dynamic_refs
+        + presence.linked_faction_refs
+    )
+    events: list[Event] = []
+    for event in world.event_stream.recent(80):
+        if presence.presence_id in event.emergent_presence_refs:
+            events.append(event)
+            continue
+        event_refs = set(
+            event.region_refs
+            + event.civ_refs
+            + event.actor_refs
+            + event.faction_refs
+            + event.relic_refs
+            + event.project_refs
+            + event.supply_refs
+            + event.node_refs
+            + event.dynamic_structure_refs
+            + event.emergent_presence_refs
+        )
+        if linked_refs.intersection(event_refs):
+            events.append(event)
+    return events[-limit:]
+
+
 def _dynamic_structure_type_label(structure_type: str) -> str:
     mapping = {
         "local_group": "局部群体",
@@ -6291,6 +6436,108 @@ def _dynamic_structure_type_label(structure_type: str) -> str:
         "anomaly_trace": "异常痕迹",
     }
     return mapping.get(structure_type, _humanize_enum_token(structure_type))
+
+
+def _emergent_presence_type_label(presence_type: str) -> str:
+    mapping = {
+        "spore_bloom": "孢子潮",
+        "migrant_swarm": "迁移群",
+        "mycelial_mat": "菌毯基质",
+        "feral_cluster": "野化群落",
+        "signal_biota": "信号生物群",
+    }
+    return mapping.get(presence_type, _humanize_enum_token(presence_type))
+
+
+def _emergent_presence_stage_label(stage: str) -> str:
+    mapping = {
+        "forming": "正在成形",
+        "spreading": "正在扩散",
+        "nesting": "正在筑巢",
+        "adapting": "正在适应封控",
+        "retreating": "正在退缩",
+        "dormant": "暂时休眠",
+    }
+    return mapping.get(stage, _humanize_enum_token(stage))
+
+
+def _emergent_presence_scale_label(scale: str) -> str:
+    mapping = {
+        "trace": "零散痕迹",
+        "cluster": "小型群簇",
+        "colony": "稳定群落",
+        "swarm": "群潮规模",
+        "regional": "地区级扩散",
+    }
+    return mapping.get(scale, _humanize_enum_token(scale))
+
+
+def _emergent_presence_mobility_label(mobility: str) -> str:
+    mapping = {
+        "fixed": "基本固着",
+        "local": "局部移动",
+        "migrating": "出现迁移",
+        "distributed": "分布式活动",
+    }
+    return mapping.get(mobility, _humanize_enum_token(mobility))
+
+
+def _format_emergent_presence_links_for_ref(
+    world: WorldState,
+    ref: str,
+    *,
+    player_view: bool,
+) -> str:
+    presences = [
+        presence
+        for presence in world.emergent_presences.values()
+        if presence.status != "archived"
+        and ref in set(
+            presence.current_region_refs
+            + presence.linked_relic_refs
+            + presence.linked_dynamic_refs
+            + presence.linked_faction_refs
+            + presence.influence_refs
+        )
+    ]
+    if player_view:
+        presences = [
+            presence
+            for presence in presences
+            if presence.visibility in {"public", "visible", "rumored"}
+        ]
+    presences.sort(
+        key=lambda presence: (
+            _pressure_thread_intensity_rank(presence.pressure),
+            presence.updated_tick,
+            presence.presence_id,
+        ),
+        reverse=True,
+    )
+    if not presences:
+        return "  异常生态: 外界暂未看出稳定生态牵连" if player_view else "  emergent_presences: None"
+
+    if player_view:
+        type_text = "、".join(
+            _emergent_presence_type_label(presence.presence_type)
+            for presence in presences[:3]
+        )
+        strongest = presences[0]
+        return (
+            f"  异常生态: 外界能看出 {len(presences)} 组生态牵连，"
+            f"主要像是{type_text}，最高压力约为{_player_level_value(strongest.pressure)}"
+        )
+
+    lines = ["  emergent_presences:"]
+    for presence in presences[:5]:
+        lines.append(
+            "    - "
+            f"{_format_entity_ref(world, presence.presence_id)} "
+            f"[type={presence.presence_type}, status={presence.status}, "
+            f"stage={presence.lifecycle_stage}, pressure={presence.pressure}, "
+            f"visibility={presence.visibility}] {presence.summary}"
+        )
+    return "\n".join(lines)
 
 
 def _format_dynamic_structure_links_for_ref(

@@ -195,6 +195,8 @@ def player_display_name(world: WorldState, ref: str) -> str:
         return f"节点“{player_region_node_name(world, world.region_nodes[ref])}”"
     if ref in world.dynamic_structures:
         return f"线索“{player_world_name(world.dynamic_structures[ref].name)}”"
+    if ref in world.emergent_presences:
+        return f"异常生态迹象“{player_world_name(world.emergent_presences[ref].name)}”"
     return ref
 
 
@@ -241,4 +243,6 @@ def format_entity_ref(world: WorldState, ref: str, player_view: bool = False) ->
         return f"{world.supply_lines[ref].name} ({ref})"
     if ref in world.dynamic_structures:
         return f"{world.dynamic_structures[ref].name} ({ref})"
+    if ref in world.emergent_presences:
+        return f"{world.emergent_presences[ref].name} ({ref})"
     return ref

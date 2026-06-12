@@ -37,6 +37,7 @@ def format_status(world: WorldState) -> str:
         "supply_lines",
         "region_nodes",
         "dynamic_structures",
+        "emergent_presences",
         "ai_proposal_audits",
         "pressure_threads",
         "relations",
