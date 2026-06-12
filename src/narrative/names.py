@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from src.narrative.labels import player_region_node_type_value
 from src.world.state import WorldState
+from src.world.style_profile import get_narrative_lexicon
 
 
 def player_world_name(name: str) -> str:
@@ -133,19 +134,16 @@ def player_region_node_name(world: WorldState, node) -> str:
     return f"{region_name}{node_type}"
 
 
-def player_presence_display_name(relic) -> str:
-    mapping = {
-        "relic_device": "异常装置",
-        "megastructure": "巨构异常",
-        "sealed_archive": "封存档案异常",
-        "founding_protocol": "奠基协议异常",
-        "anomalous_lifeform": "异常生命体",
-    }
-    return mapping.get(relic.relic_type, "异常对象")
+def player_presence_display_name(relic, style_profile_id: str | None = None) -> str:
+    lexicon = get_narrative_lexicon(style_profile_id)
+    return lexicon.relic_presence_labels.get(
+        relic.relic_type,
+        lexicon.relic_presence_fallback_label,
+    )
 
 
-def player_presence_name(relic) -> str:
-    return f"{player_presence_display_name(relic)}“{player_world_name(relic.name)}”"
+def player_presence_name(relic, style_profile_id: str | None = None) -> str:
+    return f"{player_presence_display_name(relic, style_profile_id)}“{player_world_name(relic.name)}”"
 
 
 def player_faction_type_label(faction_type: str) -> str:
@@ -165,6 +163,7 @@ def player_faction_type_label(faction_type: str) -> str:
 
 
 def player_display_name(world: WorldState, ref: str) -> str:
+    lexicon = get_narrative_lexicon(world.style_profile_id)
     if ref in world.characters:
         character = world.characters[ref]
         if character.name.startswith("Protagonist-"):
@@ -184,19 +183,19 @@ def player_display_name(world: WorldState, ref: str) -> str:
     if ref in world.regions:
         return player_world_name(world.regions[ref].name)
     if ref in world.relics:
-        return player_presence_name(world.relics[ref])
+        return player_presence_name(world.relics[ref], world.style_profile_id)
     if ref in world.civilizations:
         return player_world_name(world.civilizations[ref].name)
     if ref in world.projects:
-        return f"项目“{player_project_name(world.projects[ref].name)}”"
+        return f"{lexicon.project_display_prefix}“{player_project_name(world.projects[ref].name)}”"
     if ref in world.supply_lines:
-        return f"补给线“{player_supply_name(world.supply_lines[ref].name)}”"
+        return f"{lexicon.supply_display_prefix}“{player_supply_name(world.supply_lines[ref].name)}”"
     if ref in world.region_nodes:
-        return f"节点“{player_region_node_name(world, world.region_nodes[ref])}”"
+        return f"{lexicon.node_display_prefix}“{player_region_node_name(world, world.region_nodes[ref])}”"
     if ref in world.dynamic_structures:
-        return f"线索“{player_world_name(world.dynamic_structures[ref].name)}”"
+        return f"{lexicon.dynamic_structure_display_prefix}“{player_world_name(world.dynamic_structures[ref].name)}”"
     if ref in world.emergent_presences:
-        return f"异常生态迹象“{player_world_name(world.emergent_presences[ref].name)}”"
+        return f"{lexicon.emergent_presence_display_prefix}“{player_world_name(world.emergent_presences[ref].name)}”"
     return ref
 
 

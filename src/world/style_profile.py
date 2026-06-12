@@ -51,6 +51,13 @@ class NarrativeLexicon:
     emergent_presence_ecological_label: str
     emergent_presence_linked_relic_count_unit: str
     emergent_presence_linked_relic_empty: str
+    relic_presence_labels: dict[str, str] = field(default_factory=dict)
+    relic_presence_fallback_label: str = "异常对象"
+    project_display_prefix: str = "项目"
+    supply_display_prefix: str = "补给线"
+    node_display_prefix: str = "节点"
+    dynamic_structure_display_prefix: str = "线索"
+    emergent_presence_display_prefix: str = "异常生态迹象"
 
 
 DEFAULT_WORLD_STYLE_PROFILES: dict[str, WorldStyleProfile] = {
@@ -163,6 +170,13 @@ DEFAULT_NARRATIVE_LEXICONS: dict[str, NarrativeLexicon] = {
         emergent_presence_ecological_label="生态线索",
         emergent_presence_linked_relic_count_unit="个异常牵连",
         emergent_presence_linked_relic_empty="外界暂未看出稳定异常牵连",
+        relic_presence_labels={
+            "relic_device": "异常装置",
+            "megastructure": "巨构异常",
+            "sealed_archive": "封存档案异常",
+            "founding_protocol": "奠基协议异常",
+            "anomalous_lifeform": "异常生命体",
+        },
     )
 }
 

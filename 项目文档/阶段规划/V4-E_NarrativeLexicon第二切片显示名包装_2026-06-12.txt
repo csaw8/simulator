@@ -1,0 +1,72 @@
+Terrarium Project V4-E NarrativeLexicon 第二切片：显示名包装
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V4-E 第二切片 |
+| 目标 | 将 player 显示名包装词迁入 `NarrativeLexicon` |
+| 范围 | `names.py` 中异常对象、项目、补给线、节点、动态线索、异常生态迹象显示名前缀 |
+| 风险控制 | 不改名称翻译逻辑，不改 player/truth 过滤，不改 summary 主体 |
+
+二、已实现内容
+
+| 文件 | 改动 |
+|---|---|
+| `src/world/style_profile.py` | `NarrativeLexicon` 增加显示名包装字段 |
+| `src/narrative/names.py` | `player_display_name(...)` 使用 lexicon 前缀 |
+| `src/narrative/names.py` | `player_presence_display_name(...)` 可按 `style_profile_id` 读取 relic 类型标签 |
+| `tests/test_style_profile.py` | 覆盖 lexicon 字段和实际 `player_display_name(...)` 输出路径 |
+
+三、本轮新增 lexicon 字段
+
+| 字段 | 默认值 |
+|---|---|
+| `relic_presence_labels.relic_device` | `异常装置` |
+| `relic_presence_labels.megastructure` | `巨构异常` |
+| `relic_presence_labels.sealed_archive` | `封存档案异常` |
+| `relic_presence_labels.founding_protocol` | `奠基协议异常` |
+| `relic_presence_labels.anomalous_lifeform` | `异常生命体` |
+| `relic_presence_fallback_label` | `异常对象` |
+| `project_display_prefix` | `项目` |
+| `supply_display_prefix` | `补给线` |
+| `node_display_prefix` | `节点` |
+| `dynamic_structure_display_prefix` | `线索` |
+| `emergent_presence_display_prefix` | `异常生态迹象` |
+
+四、保持不变
+
+| 项 | 说明 |
+|---|---|
+| `player_world_name(...)` | 英文 token 到中文名的转换逻辑未改 |
+| faction 类型显示 | 暂未迁移，后续可作为 V4-E 第三切片 |
+| region / character / civilization 名称 | 暂未迁移 |
+| truth 显示 | 不受影响，仍显示真实 id/name |
+
+五、验收
+
+| 验收项 | 状态 |
+|---|---|
+| 项目显示名前缀仍为 `项目“... ”` | 通过 |
+| 补给线显示名前缀仍为 `补给线“...”` | 通过 |
+| 节点显示名前缀仍为 `节点“...”` | 通过 |
+| 动态结构显示名前缀仍为 `线索“...”` | 通过 |
+| EmergentPresence 显示名前缀仍为 `异常生态迹象“...”` | 通过 |
+| player 防泄漏测试 | 通过 |
+
+六、下一步
+
+V4-E 可以再做一个很小的第三切片：
+
+```text
+迁移 faction 类型显示名和少量 names.py 剩余包装词
+```
+
+也可以进入 V4-F：
+
+```text
+DescriptorLexicon 固定词表
+```
+
+建议如果继续 V4-E，只做 faction 类型显示名，不要一次性迁移 `labels.py` 全量映射。
