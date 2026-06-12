@@ -1,7 +1,7 @@
 import unittest
 
 from src.events.models import Event
-from src.events.taxonomy import event_midlayer_bucket, payload_midlayer_bucket
+from src.events.taxonomy import event_family, event_midlayer_bucket, event_theme_tags, payload_midlayer_bucket
 
 
 def _event(event_type: str, *, event_scope: str = "relic") -> Event:
@@ -17,6 +17,21 @@ def _event(event_type: str, *, event_scope: str = "relic") -> Event:
         faction_refs=["faction_01"],
         relic_refs=["relic_01"] if event_scope == "relic" else [],
         severity="medium",
+    )
+
+
+def _dynamic_event() -> Event:
+    return Event(
+        event_id="event_dynamic",
+        tick=1,
+        time_granularity="week",
+        event_type="dynamic_structure_created",
+        event_scope="dynamic_structure",
+        title="Dynamic",
+        summary="Dynamic",
+        dynamic_structure_refs=["dyn_0001"],
+        cause_tags=["dynamic_structure", "incident_site"],
+        result_tags=["containment"],
     )
 
 
@@ -40,6 +55,11 @@ class EventTaxonomyTests(unittest.TestCase):
     def test_project_and_supply_events_keep_primary_buckets(self) -> None:
         self.assertEqual(event_midlayer_bucket(_event("faction_project_bid", event_scope="faction")), "project_shifts")
         self.assertEqual(event_midlayer_bucket(_event("resource_reallocation", event_scope="faction")), "supply_shocks")
+
+    def test_dynamic_structure_events_are_tagged(self) -> None:
+        event = _dynamic_event()
+        self.assertIn("dynamic", event_theme_tags(event))
+        self.assertEqual(event_family(event), "dynamic")
 
 
 if __name__ == "__main__":

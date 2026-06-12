@@ -11,6 +11,19 @@ Terrarium Project 当前已实现功能说明
 | 长跑治理 | dormant thread 会过期裁剪，每个 scope 最多保留 5 条高价值线索 |
 | 测试状态 | 当前全量测试 61 个通过，编译通过 |
 
+2026-06-12 AI 动态结构第一版补充
+
+| 类别 | 已实现 |
+|---|---|
+| 并列动态结构层 | 新增 `DynamicStructure`，存放在 `WorldState.dynamic_structures`，不直接改固定结构 schema |
+| 白名单类型 | 第一版允许 `local_group / incident_site / rumor_network / proxy_cell / anomaly_trace` |
+| Proposal 入口 | 新增 `apply_dynamic_structure_proposals(...)`，AI 或测试只能通过 proposal -> validation -> apply 写入 |
+| 校验边界 | 校验 action、structure_type、真实 refs、visibility、pressure、relation_type、数量上限 |
+| 桥接影响 | 动态结构会生成标准 Event、Relation 和 PressureThread，不直接改固定对象字段 |
+| 观察能力 | 新增 `summarize_dynamic_structure(...)` 与 CLI `watch dynamic <id>` |
+| 快照 | `dynamic_structures` 已接入 save/load |
+| 事件查询 | `events dynamic <id>` 已可按动态结构查询事件 |
+
 一、项目定位
 
 这是一个以“观察者视角”为核心的文字世界模拟器。

@@ -193,6 +193,8 @@ def player_display_name(world: WorldState, ref: str) -> str:
         return f"补给线“{player_supply_name(world.supply_lines[ref].name)}”"
     if ref in world.region_nodes:
         return f"节点“{player_region_node_name(world, world.region_nodes[ref])}”"
+    if ref in world.dynamic_structures:
+        return f"线索“{player_world_name(world.dynamic_structures[ref].name)}”"
     return ref
 
 
@@ -237,4 +239,6 @@ def format_entity_ref(world: WorldState, ref: str, player_view: bool = False) ->
         return f"{world.projects[ref].name} ({ref})"
     if ref in world.supply_lines:
         return f"{world.supply_lines[ref].name} ({ref})"
+    if ref in world.dynamic_structures:
+        return f"{world.dynamic_structures[ref].name} ({ref})"
     return ref

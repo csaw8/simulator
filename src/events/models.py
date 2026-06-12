@@ -24,6 +24,7 @@ class Event:
     project_refs: list[str] = field(default_factory=list)
     supply_refs: list[str] = field(default_factory=list)
     node_refs: list[str] = field(default_factory=list)
+    dynamic_structure_refs: list[str] = field(default_factory=list)
     cause_tags: list[str] = field(default_factory=list)
     result_tags: list[str] = field(default_factory=list)
     severity: str = "medium"

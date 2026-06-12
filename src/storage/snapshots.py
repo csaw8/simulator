@@ -10,6 +10,7 @@ from src.events.models import Event
 from src.events.stream import EventStream
 from src.world.character import Character
 from src.world.civilization import Civilization
+from src.world.dynamic_structure import DynamicStructure
 from src.world.faction import Faction
 from src.world.frame import StructureTemplate
 from src.world.pressure_thread import PressureThread
@@ -45,6 +46,7 @@ def save_world_state(world: WorldState, path: Path = DEFAULT_SNAPSHOT_PATH) -> N
         "projects": {key: asdict(value) for key, value in world.projects.items()},
         "supply_lines": {key: asdict(value) for key, value in world.supply_lines.items()},
         "region_nodes": {key: asdict(value) for key, value in world.region_nodes.items()},
+        "dynamic_structures": {key: asdict(value) for key, value in world.dynamic_structures.items()},
         "pressure_threads": {key: asdict(value) for key, value in world.pressure_threads.items()},
         "relations": {key: asdict(value) for key, value in world.relations.items()},
         "event_stream": {
@@ -86,6 +88,9 @@ def load_world_state(path: Path = DEFAULT_SNAPSHOT_PATH) -> WorldState:
     }
     world.region_nodes = {
         key: RegionNode(**value) for key, value in payload.get("region_nodes", {}).items()
+    }
+    world.dynamic_structures = {
+        key: DynamicStructure(**value) for key, value in payload.get("dynamic_structures", {}).items()
     }
     world.pressure_threads = {
         key: PressureThread(**value) for key, value in payload.get("pressure_threads", {}).items()

@@ -32,6 +32,7 @@ from src.narrative.summaries import (
     summarize_project,
     summarize_region,
     summarize_region_node,
+    summarize_dynamic_structure,
     summarize_relic,
     summarize_supply_line,
 )
@@ -68,7 +69,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  frame [brief|full] [player|truth]   Show current world structure template\n"
             "  step [n] [player|truth]          Advance the world by n steps (default 1)\n"
             "  events [n] [brief|full] [player|truth] [focus=theme]            Show recent events (default 10)\n"
-            "  events <type> <id> [n] [brief|full] [player|truth] [focus=theme] Show focused events for region/character/civ/faction/relic\n"
+            "  events <type> <id> [n] [brief|full] [player|truth] [focus=theme] Show focused events for region/character/civ/faction/relic/dynamic\n"
             "  watch region <id> [brief|full] [player|truth] [focus=theme]     Observe a region\n"
             "  watch character <id> [brief|full] [player|truth] [focus=theme]  Observe a character\n"
             "  watch civ <id> [brief|full] [player|truth] [focus=theme]        Observe a civilization\n"
@@ -77,6 +78,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch node <id> [brief|full] [player|truth] [focus=theme]       Observe a region node\n"
             "  watch relic <id> [brief|full] [player|truth] [focus=theme]      Observe a relic\n"
             "  watch supply <id> [brief|full] [player|truth] [focus=theme]     Observe a supply line\n"
+            "  watch dynamic <id> [brief|full] [player|truth] [focus=theme]    Observe a dynamic structure\n"
             "  debug llm         Test one live SiliconFlow request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
             "  save              Save the current world snapshot\n"
@@ -182,7 +184,7 @@ def _parse_events_args(parts: list[str]) -> dict[str, str | int | None]:
     """Parse `events` command arguments."""
     usage = (
         "Usage: events [n] [brief|full] [player|truth] [focus=theme] | "
-        "events <region|character|civ|faction|relic> <id> [n] [brief|full] [player|truth] [focus=theme]"
+        "events <region|character|civ|faction|relic|dynamic> <id> [n] [brief|full] [player|truth] [focus=theme]"
     )
     result: dict[str, str | int | None] = {
         "target_type": None,
@@ -230,8 +232,8 @@ def _parse_events_args(parts: list[str]) -> dict[str, str | int | None]:
             return result
         return result
 
-    if first not in {"region", "character", "civ", "faction", "relic"}:
-        result["error"] = "Unknown event focus. Use 'region', 'character', 'civ', 'faction', or 'relic'."
+    if first not in {"region", "character", "civ", "faction", "relic", "dynamic", "structure"}:
+        result["error"] = "Unknown event focus. Use 'region', 'character', 'civ', 'faction', 'relic', or 'dynamic'."
         return result
 
     if len(args) < 2:
@@ -389,6 +391,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             "watch node <id> [brief|full] [player|truth] [focus=theme] | "
             "watch relic <id> [brief|full] [player|truth] [focus=theme] | "
             "watch supply <id> [brief|full] [player|truth] [focus=theme]"
+            " | watch dynamic <id> [brief|full] [player|truth] [focus=theme]"
         )
 
     target_type = parts[1].lower()
@@ -602,7 +605,19 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
         save_world_state(context.engine.world, context.snapshot_path)
         return output
 
-    return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', or 'supply'."
+    if target_type in {"dynamic", "structure"}:
+        output = summarize_dynamic_structure(
+            context.engine.world,
+            target_id,
+            event_limit=event_limit,
+            mode=mode,
+            view=view,
+            focus=focus,
+        )
+        save_world_state(context.engine.world, context.snapshot_path)
+        return output
+
+    return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', 'supply', or 'dynamic'."
 
 
 def _handle_debug(context: CommandContext, parts: list[str]) -> str:

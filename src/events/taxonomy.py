@@ -63,6 +63,14 @@ _THEME_KEYWORDS: dict[str, tuple[str, ...]] = {
         "civil_scarcity_shift",
         "expansion_shift",
     ),
+    "dynamic": (
+        "dynamic_structure",
+        "local_group",
+        "incident_site",
+        "rumor_network",
+        "proxy_cell",
+        "anomaly_trace",
+    ),
 }
 
 _ALIASES: dict[str, str] = {
@@ -75,6 +83,8 @@ _ALIASES: dict[str, str] = {
     "control": "security",
     "actor": "character",
     "faction": "organization",
+    "structure": "dynamic",
+    "dynamic_structure": "dynamic",
 }
 
 _MIDLAYER_PAYLOAD_BUCKETS: dict[str, str] = {
@@ -147,7 +157,7 @@ def event_theme_tags(event: Event) -> list[str]:
 def event_family(event: Event) -> str:
     """Return one dominant family label for display and heuristics."""
     tags = event_theme_tags(event)
-    for preferred in ("macro", "project", "supply", "anomaly", "politics", "security", "organization"):
+    for preferred in ("macro", "project", "supply", "anomaly", "politics", "security", "organization", "dynamic"):
         if preferred in tags:
             return preferred
     if "civilization" in tags:

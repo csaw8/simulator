@@ -20,6 +20,18 @@ Terrarium Project 重开会话交接摘要
 | `src/world/pressure_thread.py` | 增加 `public_clues`，用于保存 player 可见线索 |
 | `src/narrative/summaries.py` | project/supply/node/relic full 摘要显示局势线索与“最近可见” |
 | `tests/test_narrative_summaries.py` | 增加 refs 回填、thread 覆盖、可见线索、长跑限流、防内部 token 泄漏测试 |
+| `src/world/dynamic_structure.py` | 新增 AI 动态结构并列层 |
+| `src/core/dynamic_structure_proposals.py` | 新增 proposal -> validation -> apply 写入入口 |
+
+AI 动态结构第一版已完成：
+
+| 项 | 说明 |
+|---|---|
+| 结构定位 | 与固定结构并列，数据独立 |
+| 影响方式 | 只通过 Event / Relation / PressureThread 影响固定结构 |
+| 首批类型 | `local_group / incident_site / rumor_network / proxy_cell / anomaly_trace` |
+| CLI | `watch dynamic <id>` |
+| 边界 | 不允许 AI 自由改固定结构 schema，不允许未知 refs 落库 |
 
 最近验证：
 

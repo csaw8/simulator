@@ -35,6 +35,8 @@
 - `watch relic relic_01 full truth`
 - `watch project project_01 full truth`
 - `watch supply supply_01 full truth`
+- `watch dynamic dyn_0001 full truth`
+- `watch dynamic dyn_0001 full player`
 
 四、focus 过滤示例
 

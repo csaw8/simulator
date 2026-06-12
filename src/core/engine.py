@@ -996,6 +996,7 @@ def _pressure_thread_scope_refs(event: Event) -> list[str]:
         + event.project_refs
         + event.supply_refs
         + event.node_refs
+        + event.dynamic_structure_refs
     ):
         if ref not in refs:
             refs.append(ref)
@@ -1770,6 +1771,8 @@ def _safe_ref_label(world: WorldState, ref: str) -> str:
         return world.factions[ref].name
     if ref in world.characters:
         return world.characters[ref].name
+    if ref in world.dynamic_structures:
+        return world.dynamic_structures[ref].name
     return ref
 
 

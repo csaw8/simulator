@@ -38,6 +38,7 @@ from src.world.presence import (
     presence_event_family,
 )
 from src.world.project import ProjectNetwork
+from src.world.dynamic_structure import DynamicStructure
 from src.world.region_node import RegionNode
 from src.world.relations import relations_for_ref
 from src.world.relic import Relic
@@ -458,6 +459,86 @@ def summarize_region_node(
     else:
         lines.extend(_format_region_node_links(world, node, player_view=player_view))
     if _focus_matches(focus, "events", "summary", "front", "recent", "node"):
+        lines.append(_format_related_events(world, related_events, view=view))
+    return "\n".join(lines)
+
+
+def summarize_dynamic_structure(
+    world: WorldState,
+    structure_id: str,
+    event_limit: int = 5,
+    mode: str = "brief",
+    view: str = "truth",
+    focus: str | None = None,
+) -> str:
+    """Return a compact summary for one AI-proposed dynamic structure."""
+    structure = world.dynamic_structures.get(structure_id)
+    if structure is None:
+        return f"Unknown dynamic structure: {structure_id}"
+
+    related_events = _recent_dynamic_structure_events(world, structure, limit=event_limit)
+    player_view = is_player_view(view)
+    focus = _normalize_summary_focus(focus)
+
+    lines = [
+        _summary_title(
+            world,
+            ref=structure.structure_id,
+            player_view=player_view,
+            player_label="动态线索观察",
+            truth_title=f"DynamicStructure {structure.name} ({structure.structure_id})",
+        )
+    ]
+    lines.append(
+        _view_simple_line(
+            player_view=player_view,
+            label="type",
+            value=_dynamic_structure_type_label(structure.structure_type),
+            player_value=_dynamic_structure_type_label(structure.structure_type),
+        )
+    )
+    lines.append(_view_simple_line(player_view=player_view, label="status", value=_player_status_value(structure.status), player_value=_player_status_value(structure.status)))
+    lines.append(_view_simple_line(player_view=player_view, label="pressure", value=_player_level_value(structure.pressure), player_value=_player_level_value(structure.pressure)))
+    lines.append(
+        "  概述: 外界能看出这是一条正在牵动周边对象的临时结构线索"
+        if player_view
+        else f"  summary: {structure.summary}"
+    )
+    if mode == "full":
+        if _focus_matches(focus, "summary", "structure", "front"):
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="scope_refs",
+                    truth_value=_truth_optional_text(_format_entity_refs(world, structure.scope_refs[:6]), "None"),
+                    player_label="影响范围",
+                    player_value=_player_ref_count_value(structure.scope_refs[:6], "个可见范围", "外界暂未看出稳定影响范围"),
+                )
+            )
+            lines.append(
+                _view_line(
+                    player_view=player_view,
+                    truth_label="linked_refs",
+                    truth_value=_truth_optional_text(_format_entity_refs(world, structure.linked_refs[:8]), "None"),
+                    player_label="牵连对象",
+                    player_value=_player_ref_count_value(structure.linked_refs[:8], "个牵连对象", "外界暂未看出稳定牵连对象"),
+                )
+            )
+            lines.append(
+                _view_simple_line(
+                    player_view=player_view,
+                    label="tags",
+                    value=_truth_tag_list_value(structure.tags, _humanize_enum_token, "None"),
+                    player_value=_player_tag_list_value(structure.tags, _humanize_enum_token),
+                )
+            )
+            lines.append(
+                _player_relation_block(world, structure.structure_id, label="关系迹象")
+                if player_view
+                else _format_relation_block(world, structure.structure_id, limit=8)
+            )
+            lines.append(_format_pressure_threads_for_ref(world, structure.structure_id, player_view=player_view))
+    if _focus_matches(focus, "events", "summary", "front", "recent", "structure"):
         lines.append(_format_related_events(world, related_events, view=view))
     return "\n".join(lines)
 
@@ -6164,6 +6245,45 @@ def _recent_region_node_events(world: WorldState, node: RegionNode, *, limit: in
         if linked_refs.intersection(event.actor_refs + event.faction_refs + event.civ_refs):
             events.append(event)
     return events[-limit:]
+
+
+def _recent_dynamic_structure_events(
+    world: WorldState,
+    structure: DynamicStructure,
+    *,
+    limit: int,
+) -> list[Event]:
+    linked_refs = set(structure.scope_refs + structure.linked_refs)
+    events: list[Event] = []
+    for event in world.event_stream.recent(80):
+        if structure.structure_id in event.dynamic_structure_refs:
+            events.append(event)
+            continue
+        event_refs = set(
+            event.region_refs
+            + event.civ_refs
+            + event.actor_refs
+            + event.faction_refs
+            + event.relic_refs
+            + event.project_refs
+            + event.supply_refs
+            + event.node_refs
+            + event.dynamic_structure_refs
+        )
+        if linked_refs.intersection(event_refs):
+            events.append(event)
+    return events[-limit:]
+
+
+def _dynamic_structure_type_label(structure_type: str) -> str:
+    mapping = {
+        "local_group": "局部群体",
+        "incident_site": "事件现场",
+        "rumor_network": "传闻网络",
+        "proxy_cell": "代理单元",
+        "anomaly_trace": "异常痕迹",
+    }
+    return mapping.get(structure_type, _humanize_enum_token(structure_type))
 
 
 def _player_node_controller_hint(node: RegionNode) -> str:
