@@ -1,0 +1,71 @@
+V4-F DescriptorLexicon 固定描述词表
+
+日期：2026-06-12
+
+目标
+
+- 建立 approved descriptor pool，集中管理隐标签词表。
+- 覆盖 appearance / function / behavior / sensory / social_read / ecological 六类标签。
+- 为 V4-G DescriptorProfile 落地和 V4-H AI descriptor 候选组合提供边界。
+- 不允许 AI 自由新增标签，不把 descriptor 接入规则核心。
+
+本轮实现
+
+| 项 | 内容 |
+|---|---|
+| 新文件 | `src/world/descriptor_lexicon.py` |
+| 核心结构 | `DescriptorTag`、`DescriptorLexicon` |
+| 默认 profile | `realistic_future_anomaly` |
+| 标签类别 | `appearance / function / behavior / sensory / social_read / ecological` |
+| 适配对象 | `character / region_node / relic / project / supply_line / dynamic_structure / emergent_presence` |
+| 查询接口 | `get_descriptor_lexicon`、`descriptor_tag`、`approved_descriptor_tag_ids` |
+| 校验接口 | `is_approved_descriptor_tag`、`validate_descriptor_tags` |
+| 显示接口 | `descriptor_zh_label` |
+
+默认词表范围
+
+| 类别 | 示例标签 |
+|---|---|
+| appearance | `scarred_surface`、`black_composite`、`overbuilt_gate`、`sealed_drawer_bank`、`organic_filament` |
+| function | `access_control`、`containment`、`routing`、`archive_storage`、`biosecurity_filter` |
+| behavior | `cautious`、`opportunistic`、`territorial`、`reactive`、`predatory` |
+| sensory | `low_hum`、`cold_light`、`ozone_smell`、`signal_flicker`、`spore_haze` |
+| social_read | `trusted`、`feared`、`rumored`、`bureaucratic`、`sacred_to_locals` |
+| ecological | `biosecurity_risk`、`habitat_disruption`、`migration_pressure`、`spore_contamination`、`containment_leakage` |
+
+与现有结构的兼容
+
+| 对象 | 兼容点 |
+|---|---|
+| EmergentPresence | 现有 `reactive / territorial / spore_haze / biosecurity_risk` 均在 approved pool 内 |
+| Character | `cautious / opportunistic / reactive` 可用于后续行为 descriptor |
+| RegionNode | 外观、功能、感官类标签已预留 |
+| Relic | 外观、功能、行为、感官、生态类标签已预留 |
+| Project / SupplyLine | 功能、外观、社会观感类标签已预留 |
+| DynamicStructure | 行为、社会观感、部分外观/功能/感官类标签已预留 |
+
+边界
+
+| 不做项 | 原因 |
+|---|---|
+| 不写入 WorldState | DescriptorProfile 是 V4-G 内容 |
+| 不接 proposal validator | 本轮只建立通用 approved pool，避免改变现有 AI/手工提案行为 |
+| 不让 AI 自由新增标签 | 自由新增 descriptor 放第五阶段后半或更后 |
+| 不改 summary 输出 | player/truth 信息差不在本轮承压 |
+| 不改变规则判断 | descriptor 暂时只作为描述边界，不参与模拟核心 |
+
+验证
+
+| 测试 | 覆盖 |
+|---|---|
+| `tests/test_descriptor_lexicon.py` | 默认词表读取、fallback、标签查询、显示名、类别/profile 约束、非 approved tag 拒绝 |
+| `tests/test_emergent_presences.py` | 现有 EmergentPresence 行为保持 |
+| `tests/test_style_profile.py` | V4-B 至 V4-E 已有 profile/lexicon 行为不退化 |
+
+后续
+
+| 批次 | 内容 |
+|---|---|
+| V4-G | 新增 DescriptorProfile 数据层，写入 WorldState，snapshot 保存/读取，固定池 seed 抽取 |
+| V4-H | AI 只从 approved pool 中提出 descriptor 候选组合，走 validation/audit/apply |
+| V4-I | 默认 profile 回归与第二 profile 小试点 |
