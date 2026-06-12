@@ -41,6 +41,8 @@
 - `watch region region_04 full truth apply=dynamic`
 - `audit proposals`
 - `audit proposals 5`
+- `audit proposals summary`
+- `audit proposals summary 20`
 
 四、focus 过滤示例
 

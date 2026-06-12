@@ -43,6 +43,7 @@ Terrarium Project 当前已实现功能说明
 | 审计数据层 | 新增 `AIProposalAudit`，存放在 `WorldState.ai_proposal_audits` |
 | 自动记录 | dynamic proposal 的 dry-run、apply、失败、拒绝都会记录 audit |
 | CLI 查询 | 新增 `audit proposals [n]` |
+| 质量统计 | 新增 `audit proposals summary [n]`，显示 accepted/applied/rejected/error/source 分布 |
 | 输出追踪 | `propose=dynamic/apply=dynamic` 输出 `audit_id` |
 | 快照 | `ai_proposal_audits` 已接入 save/load |
 | 限流 | 审计记录最多保留最近 80 条 |

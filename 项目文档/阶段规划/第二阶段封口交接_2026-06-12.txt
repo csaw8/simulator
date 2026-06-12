@@ -101,8 +101,9 @@ Terrarium Project 第二阶段封口交接
 | 审计模型 | `AIProposalAudit` |
 | 状态字段 | `WorldState.ai_proposal_audits` |
 | CLI | `audit proposals [n]` |
+| 质量统计 | `audit proposals summary [n]` |
 | 快照 | 已保存/读取 |
 | 输出追踪 | 每次 dynamic proposal 输出 `audit_id` |
-| 当前验证 | 全量测试 75 个通过 |
+| 当前验证 | 全量测试 76 个通过 |
 
-下一步建议：进行真实联网 dry-run 抽样，优先收集 5-10 条 `propose=dynamic` 的 audit 记录，只评估 proposal 合法率与可用性，不急于批量 apply。
+当前环境未检测到 `SILICONFLOW_API_KEY`，暂时无法做真实联网 dry-run 抽样。下一步建议：配置 API key 后，优先收集 5-10 条 `propose=dynamic` 的 audit 记录，用 `audit proposals summary` 评估合法率与错误分布，不急于批量 apply。

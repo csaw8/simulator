@@ -169,6 +169,60 @@ def format_ai_proposal_audits(world: WorldState, *, limit: int = 10) -> str:
     return "\n".join(lines)
 
 
+def format_ai_proposal_audit_summary(world: WorldState, *, limit: int = 40) -> str:
+    """Render aggregate quality metrics for recent AI proposal audits."""
+    audits = sorted(
+        world.ai_proposal_audits.values(),
+        key=lambda audit: (audit.tick, audit.audit_id),
+        reverse=True,
+    )[: max(1, limit)]
+    if not audits:
+        return "No AI proposal audits recorded."
+
+    accepted_count = sum(1 for audit in audits if audit.accepted_refs)
+    applied_count = sum(1 for audit in audits if audit.applied and audit.accepted_refs)
+    rejected_count = sum(1 for audit in audits if audit.rejected_reasons)
+    error_counts: dict[str, int] = {}
+    rejection_counts: dict[str, int] = {}
+    source_counts: dict[str, int] = {}
+    for audit in audits:
+        source_counts[audit.source] = source_counts.get(audit.source, 0) + 1
+        if audit.error:
+            key = _compact_audit_reason(audit.error)
+            error_counts[key] = error_counts.get(key, 0) + 1
+        for reason in audit.rejected_reasons:
+            key = _compact_audit_reason(reason)
+            rejection_counts[key] = rejection_counts.get(key, 0) + 1
+
+    total = len(audits)
+    acceptance_rate = int(round((accepted_count / total) * 100))
+    rejection_rate = int(round((rejected_count / total) * 100))
+    lines = [f"AI proposal audit summary ({total} sampled):"]
+    lines.append(f"  accepted_records: {accepted_count} ({acceptance_rate}%)")
+    lines.append(f"  applied_records: {applied_count}")
+    lines.append(f"  rejected_records: {rejected_count} ({rejection_rate}%)")
+    lines.append("  sources: " + _format_counts(source_counts))
+    lines.append("  errors: " + _format_counts(error_counts))
+    lines.append("  rejections: " + _format_counts(rejection_counts))
+    return "\n".join(lines)
+
+
+def _format_counts(counts: dict[str, int]) -> str:
+    if not counts:
+        return "None"
+    ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return ", ".join(f"{key}={count}" for key, count in ordered[:5])
+
+
+def _compact_audit_reason(reason: str) -> str:
+    text = " ".join(reason.strip().split())
+    if ":" in text:
+        text = text.split(":", 1)[0]
+    if len(text) > 64:
+        text = text[:64].rstrip() + "..."
+    return text or "unknown"
+
+
 def _record_dynamic_structure_audit(
     world: WorldState,
     result: DynamicStructureAIResult,

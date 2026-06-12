@@ -51,9 +51,10 @@ AI proposal 审计已完成：
 | 数据层 | `src/world/ai_audit.py` |
 | 状态字段 | `WorldState.ai_proposal_audits` |
 | CLI | `audit proposals [n]` |
+| 质量统计 | `audit proposals summary [n]` |
 | 输出 | dynamic proposal block 会显示 `audit_id` |
 | 快照 | save/load 已覆盖 |
-| 当前测试 | 全量 75 tests OK |
+| 当前测试 | 全量 76 tests OK |
 
 最近验证：
 

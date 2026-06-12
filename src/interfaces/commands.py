@@ -11,6 +11,7 @@ from src.config.models import AIConfig, WorldConfig
 from src.core.engine import WorldEngine, StepResult
 from src.core.budget import BudgetManager
 from src.core.dynamic_structure_ai import (
+    format_ai_proposal_audit_summary,
     format_ai_proposal_audits,
     format_dynamic_structure_ai_result,
     propose_dynamic_structures_for_watch,
@@ -86,6 +87,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch dynamic <id> [brief|full] [player|truth] [focus=theme]    Observe a dynamic structure\n"
             "  Add propose=dynamic for dry-run dynamic proposals, or apply=dynamic to write accepted proposals\n"
             "  audit proposals [n]      Show recent AI proposal audit records\n"
+            "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
             "  debug llm         Test one live SiliconFlow request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
             "  save              Save the current world snapshot\n"
@@ -143,13 +145,20 @@ def _parse_optional_int(parts: list[str], default: int) -> int:
 
 def _handle_audit(context: CommandContext, parts: list[str]) -> str:
     if len(parts) < 2 or parts[1].lower() != "proposals":
-        return "Usage: audit proposals [n]"
+        return "Usage: audit proposals [n] | audit proposals summary [n]"
     limit = 10
+    if len(parts) >= 3 and parts[2].lower() == "summary":
+        if len(parts) >= 4:
+            try:
+                limit = max(1, int(parts[3]))
+            except ValueError:
+                return "Usage: audit proposals [n] | audit proposals summary [n]"
+        return format_ai_proposal_audit_summary(context.engine.world, limit=limit)
     if len(parts) >= 3:
         try:
             limit = max(1, int(parts[2]))
         except ValueError:
-            return "Usage: audit proposals [n]"
+            return "Usage: audit proposals [n] | audit proposals summary [n]"
     return format_ai_proposal_audits(context.engine.world, limit=limit)
 
 

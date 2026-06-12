@@ -194,6 +194,26 @@ class DynamicStructureAITests(unittest.TestCase):
         self.assertIn("audit_", output)
         self.assertIn("dynamic_structure", output)
 
+    def test_cli_audit_proposal_summary_reports_quality_metrics(self) -> None:
+        world = _world_with_signal()
+        cfg = _cfg()
+        with tempfile.TemporaryDirectory() as tmp:
+            context = CommandContext(
+                engine=WorldEngine(world, ai_config=cfg),
+                world_config=WorldConfig(**DEFAULT_WORLD_CONFIG),
+                ai_config=AIConfig(**cfg),
+                snapshot_path=Path(tmp) / "world.json",
+            )
+            handle_command(
+                context,
+                f"watch region {next(iter(world.regions))} full truth propose=dynamic",
+            )
+            output = handle_command(context, "audit proposals summary 5")
+
+        self.assertIn("AI proposal audit summary", output)
+        self.assertIn("accepted_records:", output)
+        self.assertIn("errors:", output)
+
     def test_ai_proposal_audits_are_preserved_in_snapshots(self) -> None:
         world = _world_with_signal()
         client = FakeProposalClient(_payload(world))

@@ -20,6 +20,7 @@
 下一步直接做：
 - 若 SiliconFlow 可用，先运行 `watch region <id> full truth propose=dynamic` 检查 proposal 质量
 - 使用 `audit proposals 10` 查看最近 AI proposal 记录
+- 使用 `audit proposals summary 20` 查看 proposal 合法率和错误分布
 - 稳定后再运行 `watch region <id> full truth apply=dynamic`
 - 继续补真实联网抽样和更细的上下文压缩
 

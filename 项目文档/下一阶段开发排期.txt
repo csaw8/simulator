@@ -30,8 +30,9 @@ Terrarium Project 开发周期与当前排期
 | AI 动态结构 proposal dry-run | 已完成 |
 | AI 动态结构 proposal apply | 已完成 |
 | AI proposal 审计日志 | 已完成 |
-| 真实联网质量评估 | 待 SiliconFlow 可用后执行 |
-| 下一优先任务 | 真实输出质量抽样、上下文压缩、proposal 质量指标 |
+| proposal 质量指标 | 已完成：`audit proposals summary [n]` |
+| 真实联网质量评估 | 待 `SILICONFLOW_API_KEY` 可用后执行 |
+| 下一优先任务 | 配置真实 API key 后做 dry-run 抽样；随后做上下文压缩 |
 
 
 一、当前进度总览
