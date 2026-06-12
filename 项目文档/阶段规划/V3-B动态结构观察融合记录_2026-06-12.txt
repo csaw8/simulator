@@ -1,0 +1,60 @@
+Terrarium Project V3-B 动态结构观察融合记录
+
+日期：2026-06-12
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V3-B |
+| 目标 | 让 DynamicStructure 不只可单独 `watch dynamic`，也能在相关固定对象 full 摘要中自然出现 |
+| 原则 | 不新建重系统，不改变固定对象字段，不让 AI 直接写固定结构 |
+| 融合方式 | 观察层按 ref 读取 `world.dynamic_structures`，生成 truth/player 双视角摘要 |
+
+二、实现范围
+
+| 对象 | 状态 |
+|---|---|
+| region | 已接入 |
+| faction | 已接入 |
+| relic | 已接入 |
+| project | 已接入 |
+| supply | 已接入 |
+| node | 已接入 |
+| civilization | 暂未接入，后续可按 key_regions/key_factions 汇总 |
+| character | 暂未接入，后续可在 intent/context 融合阶段处理 |
+
+三、输出规则
+
+| 视角 | 输出 |
+|---|---|
+| truth | `dynamic_structures:`，显示结构名、ID、类型、状态、压力、可见性和摘要 |
+| player | `动态线索:`，只显示数量、类型倾向和最高压力，不泄漏 `dyn_` 或 `dynamic_structures:` |
+
+四、实现细节
+
+| 文件 | 内容 |
+|---|---|
+| `src/narrative/summaries.py` | 新增 `_format_dynamic_structure_links_for_ref(...)` |
+| `src/narrative/summaries.py` | 在 region / faction / relic / project / supply / node 的 full 摘要中接入动态线索块 |
+| `tests/test_dynamic_structures.py` | 增加固定对象摘要融合测试，覆盖六类对象 truth/player 输出 |
+
+五、验证
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_dynamic_structures` | 6 tests OK |
+| `python -m unittest discover -s tests` | 78 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+六、结论
+
+| 项 | 结论 |
+|---|---|
+| V3-B 是否完成 | 完成 |
+| DynamicStructure 是否进入固定对象观察层 | 是 |
+| 是否污染固定结构 | 否 |
+| player 信息隔离 | 通过现有测试与新增测试 |
+| 下一步 | V3-C：动态结构生命周期，避免长期无限堆积 |
+
+V3-B 完成后，AI 生成结构已经从“只能单独查看”进入了固定世界对象的观察面。下一步应处理生命周期和归档，否则后续 live apply 增多后会出现动态结构长期堆积问题。

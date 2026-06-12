@@ -10,6 +10,12 @@ from src.events.query import select_events
 from src.interfaces.commands import CommandContext, handle_command
 from src.interfaces.stream_view import format_status
 from src.narrative.summaries import summarize_dynamic_structure
+from src.narrative.summaries import summarize_faction
+from src.narrative.summaries import summarize_project
+from src.narrative.summaries import summarize_region
+from src.narrative.summaries import summarize_region_node
+from src.narrative.summaries import summarize_relic
+from src.narrative.summaries import summarize_supply_line
 from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 
@@ -28,7 +34,13 @@ def _sample_payload(world):
                 "name": "North Lockdown Belt",
                 "summary": "A disputed project perimeter has become a visible incident site.",
                 "scope_refs": [next(iter(world.regions))],
-                "linked_refs": [next(iter(world.projects)), next(iter(world.region_nodes))],
+                "linked_refs": [
+                    next(iter(world.projects)),
+                    next(iter(world.region_nodes)),
+                    next(iter(world.relics)),
+                    next(iter(world.factions)),
+                    next(iter(world.supply_lines)),
+                ],
                 "tags": ["site_accident", "containment", "labor_unrest"],
                 "visibility": "visible",
                 "pressure": "high",
@@ -106,6 +118,28 @@ class DynamicStructureTests(unittest.TestCase):
             view="truth",
         )
         self.assertEqual(len(selected), 1)
+
+    def test_dynamic_structure_links_appear_in_fixed_object_summaries(self) -> None:
+        world = _build_world()
+        apply_dynamic_structure_proposals(world, _sample_payload(world))
+        refs_and_summaries = [
+            (next(iter(world.regions)), summarize_region),
+            (next(iter(world.projects)), summarize_project),
+            (next(iter(world.region_nodes)), summarize_region_node),
+            (next(iter(world.relics)), summarize_relic),
+            (next(iter(world.factions)), summarize_faction),
+            (next(iter(world.supply_lines)), summarize_supply_line),
+        ]
+
+        for ref, summary_func in refs_and_summaries:
+            with self.subTest(ref=ref):
+                player_text = summary_func(world, ref, event_limit=5, mode="full", view="player")
+                truth_text = summary_func(world, ref, event_limit=5, mode="full", view="truth")
+                self.assertIn("动态线索:", player_text)
+                self.assertIn("dynamic_structures:", truth_text)
+                self.assertIn("North Lockdown Belt", truth_text)
+                self.assertNotIn("dyn_", player_text)
+                self.assertNotIn("dynamic_structures:", player_text)
 
     def test_dynamic_structures_are_preserved_in_snapshots(self) -> None:
         world = _build_world()

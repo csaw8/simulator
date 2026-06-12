@@ -343,6 +343,7 @@ def summarize_region(
         )
         lines.append(_format_region_nodes_for_region(world, region.region_id, player_view=player_view))
         lines.append(_format_pressure_threads_for_ref(world, region.region_id, player_view=player_view))
+        lines.append(_format_dynamic_structure_links_for_ref(world, region.region_id, player_view=player_view))
         lines.append(_format_region_ambient_people(world, region.region_id, view=view))
         lines.append(_format_region_ambient_details(world, region.region_id, view=view))
         lines.append(
@@ -456,6 +457,7 @@ def summarize_region_node(
         if _focus_matches(focus, "history", "recent", "notes", "node"):
             lines.append(_format_region_node_recent_notes(world, node, player_view=player_view))
         lines.append(_format_pressure_threads_for_ref(world, node.node_id, player_view=player_view))
+        lines.append(_format_dynamic_structure_links_for_ref(world, node.node_id, player_view=player_view))
     else:
         lines.extend(_format_region_node_links(world, node, player_view=player_view))
     if _focus_matches(focus, "events", "summary", "front", "recent", "node"):
@@ -1187,6 +1189,7 @@ def summarize_relic(
             else _format_relation_block(world, relic.relic_id, limit=8)
         )
         lines.append(_format_pressure_threads_for_ref(world, relic.relic_id, player_view=player_view))
+        lines.append(_format_dynamic_structure_links_for_ref(world, relic.relic_id, player_view=player_view))
     else:
         lines.append(
             _player_relic_story_hint(relic)
@@ -1479,6 +1482,7 @@ def summarize_faction(
                 if player_view
                 else _format_faction_operational_style_trace(world, faction)
             )
+        lines.append(_format_dynamic_structure_links_for_ref(world, faction.faction_id, player_view=player_view))
     else:
         lines.append(
             _player_faction_controlled_regions_hint(faction)
@@ -1607,6 +1611,7 @@ def summarize_supply_line(
             )
             lines.append(_player_supply_recent_notes(supply_line) if player_view else _format_supply_recent_notes(world, supply_line, player_view=player_view))
         lines.append(_format_pressure_threads_for_ref(world, supply_line.supply_id, player_view=player_view))
+        lines.append(_format_dynamic_structure_links_for_ref(world, supply_line.supply_id, player_view=player_view))
     else:
         lines.append(_view_simple_line(player_view=player_view, label="front_tags", value=_truth_tag_list_value(supply_line.front_tags[:4], _player_front_tag_value, "尚未形成稳定前线标签"), player_value=_player_tag_list_value(supply_line.front_tags[:4], _player_front_tag_value)))
     if _focus_matches(focus, "events", "summary", "front", "recent", "supply"):
@@ -1693,6 +1698,7 @@ def summarize_project(
         if _focus_matches(focus, "history", "recent", "notes", "project"):
             lines.append(_player_project_recent_notes(project) if player_view else _format_project_recent_notes(world, project, player_view=player_view))
         lines.append(_format_pressure_threads_for_ref(world, project.project_id, player_view=player_view))
+        lines.append(_format_dynamic_structure_links_for_ref(world, project.project_id, player_view=player_view))
     else:
         lines.append(_view_simple_line(player_view=player_view, label="front_tags", value=_truth_tag_list_value(project.front_tags[:4], _player_front_tag_value, "尚未形成稳定前线标签"), player_value=_player_tag_list_value(project.front_tags[:4], _player_front_tag_value)))
     if _focus_matches(focus, "events", "summary", "front", "recent", "project"):
@@ -6285,6 +6291,58 @@ def _dynamic_structure_type_label(structure_type: str) -> str:
         "anomaly_trace": "异常痕迹",
     }
     return mapping.get(structure_type, _humanize_enum_token(structure_type))
+
+
+def _format_dynamic_structure_links_for_ref(
+    world: WorldState,
+    ref: str,
+    *,
+    player_view: bool,
+) -> str:
+    structures = [
+        structure
+        for structure in world.dynamic_structures.values()
+        if structure.status != "archived"
+        and ref in set(structure.scope_refs + structure.linked_refs + structure.influence_refs)
+    ]
+    if player_view:
+        structures = [
+            structure
+            for structure in structures
+            if structure.visibility in {"public", "visible", "rumored"}
+        ]
+    structures.sort(
+        key=lambda structure: (
+            _pressure_thread_intensity_rank(structure.pressure),
+            structure.updated_tick,
+            structure.structure_id,
+        ),
+        reverse=True,
+    )
+    if not structures:
+        return "  动态线索: 外界暂未看出稳定动态牵连" if player_view else "  dynamic_structures: None"
+
+    if player_view:
+        type_text = "、".join(
+            _dynamic_structure_type_label(structure.structure_type)
+            for structure in structures[:3]
+        )
+        strongest = structures[0]
+        return (
+            f"  动态线索: 外界能看出 {len(structures)} 条动态牵连，"
+            f"主要像是{type_text}，最高压力约为{_player_level_value(strongest.pressure)}"
+        )
+
+    lines = ["  dynamic_structures:"]
+    for structure in structures[:5]:
+        lines.append(
+            "    - "
+            f"{_format_entity_ref(world, structure.structure_id)} "
+            f"[type={structure.structure_type}, status={structure.status}, "
+            f"pressure={structure.pressure}, visibility={structure.visibility}] "
+            f"{structure.summary}"
+        )
+    return "\n".join(lines)
 
 
 def _player_node_controller_hint(node: RegionNode) -> str:
