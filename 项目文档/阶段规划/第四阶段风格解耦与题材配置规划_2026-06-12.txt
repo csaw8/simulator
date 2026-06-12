@@ -45,6 +45,7 @@ AI 动态结构
 | 当前题材保持默认 | `realistic_future_anomaly` 作为默认 profile |
 | 文风不被泛化稀释 | 默认输出仍保持现有“未来文明异常压力”质感 |
 | player/truth 术语可配置 | 标题、观察块标签、禁用词、偏好词进入 lexicon |
+| 隐标签词表集中化 | 人物性格、建筑外观、物品功能、感官特征等 descriptor pool 进入 profile/lexicon 管理 |
 | 多题材预留 | 后续可新增 fantasy / modern / post-collapse profile，但第四阶段不强制实现多套完整题材 |
 
 四、推荐数据结构
@@ -81,6 +82,20 @@ class NarrativeLexicon:
     emergent_presence_label: str
 ```
 
+3. `DescriptorLexicon`
+
+```python
+@dataclass(slots=True)
+class DescriptorLexicon:
+    appearance_tags: dict[str, str]
+    function_tags: dict[str, str]
+    behavior_tags: dict[str, str]
+    sensory_tags: dict[str, str]
+    social_read_tags: dict[str, str]
+    compatibility: dict[str, list[str]]
+    conflict_groups: dict[str, list[str]]
+```
+
 当前默认 profile：
 
 | 字段 | 值 |
@@ -101,8 +116,10 @@ class NarrativeLexicon:
 | 3 | V4-C | prompt 风格配置化 | intent / observer prompt 使用 profile | 原有 AI prompt 测试通过 |
 | 4 | V4-D | observer voice 配置化 | observer voice 从 profile/lexicon 读取 | 默认输出语义不退化 |
 | 5 | V4-E | summary 标题与标签 lexicon 化 | 观察标题、块名进入 `NarrativeLexicon` | player 防泄漏测试通过 |
-| 6 | V4-F | 风格回归测试 | 保证默认 profile 下输出保持当前题材 | 全量测试通过 |
-| 7 | V4-G | 可选第二 profile 试点 | 只做一个小型非默认 profile 验证接口 | 不要求完整多题材支持 |
+| 6 | V4-F | 隐标签词表配置化 | DescriptorProfile 使用的外观、功能、行为、感官、社会观感标签进入 `DescriptorLexicon` | 默认固定池可读取，同 seed 可复现 |
+| 7 | V4-G | AI 初始化标签候选试点 | AI 只从 approved descriptor pool 中选择标签或建议权重 | 可关闭、可回退、有 audit，不直接写任意标签 |
+| 8 | V4-H | 风格回归测试 | 保证默认 profile 下输出保持当前题材 | 全量测试通过 |
+| 9 | V4-I | 可选第二 profile 试点 | 只做一个小型非默认 profile 验证接口 | 不要求完整多题材支持 |
 
 六、第三阶段准备任务
 
@@ -113,6 +130,7 @@ class NarrativeLexicon:
 | 硬编码盘点 | 记录 `World style`、observer voice、summary 标签等位置 |
 | 命名边界 | 区分“当前题材默认词”和“系统通用词” |
 | EmergentPresence 设计兼容 | V3-H/V3-I 不把新实体名称写死成只能服务当前题材的词 |
+| 隐标签设计兼容 | V3-M 先规划 `DescriptorProfile`，第四阶段再接入 descriptor 词表 |
 | SQLite 设计兼容 | SQLite schema 不写死某一题材，仅记录通用字段 |
 | 不做代码大改 | 不在 V3-H/V3-I 前拆 prompt 和 summary |
 
@@ -135,6 +153,7 @@ class NarrativeLexicon:
 | V3-J SQLite 导出器 | schema 用通用字段，不依赖题材词 |
 | V3-K SQLite ledger | 审计字段通用化 |
 | V3-L 风格解耦准备 | 输出硬编码盘点和第四阶段接口建议 |
+| V3-M 隐标签与描述档案层 | 输出 descriptor 字段边界、固定池来源、AI 参与初始化边界 |
 
 九、结论
 
@@ -159,6 +178,7 @@ class NarrativeLexicon:
 | 第四阶段提供的基础 | `WorldStyleProfile`、`NarrativeLexicon`、题材词表、禁用词、输出风格边界 |
 | 第四阶段不做 | 不让 AI 自由新增 schema，不做 template approval registry，不做半开放模板实例化 |
 | 第五阶段再做 | `StructureTemplateProposal`、模板 validator、审批队列、approved template registry、模板实例化 |
+| 隐标签约束 | 第五阶段新模板必须声明可用 descriptor 字段，不能无限扩展标签空间 |
 | 详细文档 | `项目文档/阶段规划/第五阶段半开放结构生成规划_2026-06-12.txt` |
 
 也就是说，第四阶段负责告诉 AI “这个世界允许什么风格和题材边界”，第五阶段才允许 AI 在这些边界内提出新的结构模板。

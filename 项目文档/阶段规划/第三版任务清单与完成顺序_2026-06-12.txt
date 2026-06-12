@@ -64,6 +64,7 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 10 | V3-J | SQLite 导出器与基础查询 | 为长期事件、关系、审计和动态结构提供查询层 | 不替代 JSON 快照，可导出 events / relations / dynamic_structures / audits |
 | 11 | V3-K | SQLite 增量 ledger 与审计分析 | 为长跑和 AI proposal 质量分析提供持久记录 | 支持 db stats / db audits / db dynamics 等查询 |
 | 12 | V3-L | 风格解耦准备 | 为第四阶段 WorldStyleProfile / NarrativeLexicon 做盘点和边界设计 | 输出硬编码清单、默认题材词表、第四阶段接口建议 |
+| 13 | V3-M | 隐标签与描述档案层设计 | 为人物性格、建筑外观、物品功能、异常感官特征建立轻量 DescriptorProfile 规划 | 输出 descriptor 字段边界、固定池来源、AI 参与初始化边界 |
 
 五、近期最小执行清单
 
@@ -88,6 +89,7 @@ AI 生成 DynamicStructure / 后续半独立实体
 | 批量 `apply=dynamic` | 当前 live 样本还少，应先小规模抽样 |
 | 立刻用 SQLite 替代 JSON 快照 | 当前世界模型仍在快速变化，过早数据库化会增加迁移成本 |
 | 在第三阶段全面解耦科幻文风 | 会打断 EmergentPresence 主线，且容易稀释当前项目辨识度 |
+| 在第三阶段让 AI 自由生成初始化标签 | 会污染固定世界初始状态，应先做固定池、候选权重和审计边界 |
 
 七、何时适合扩展“新的生命存在形式”
 
@@ -138,6 +140,7 @@ EmergentPresence v1
 | 核心任务 | 建立 `WorldStyleProfile` 与 `NarrativeLexicon` |
 | 默认风格 | `realistic_future_anomaly`，继续保留现实未来科技 + 异常存在风格 |
 | 第三阶段准备任务 | V3-L：硬编码盘点、默认题材词表、接口建议 |
+| 隐标签准备任务 | V3-M：DescriptorProfile 设计，盘点人物性格、建筑外观、物品功能、感官特征等隐标签 |
 | 第三阶段不做 | 不全面重写 prompt、observer voice、summary 文案 |
 | 详细文档 | `项目文档/阶段规划/第四阶段风格解耦与题材配置规划_2026-06-12.txt` |
 
@@ -167,3 +170,42 @@ AI 可以提出受限 JSON 模板
 ```
 
 该阶段应放在第三阶段 DynamicStructure / EmergentPresence 稳定、第四阶段风格边界集中管理之后。这样可以扩大生成自由度，同时避免结构污染、审计断裂和长期存档不可迁移。
+
+十二、V3-M 预留：隐标签与描述档案层
+
+| 项 | 内容 |
+|---|---|
+| 任务名称 | 隐标签与描述档案层设计 |
+| 推荐结构 | `DescriptorProfile` |
+| 覆盖对象 | character / region_node / relic / project / supply / dynamic_structure / emergent_presence |
+| 覆盖标签 | 人物性格、行为倾向、建筑外观、物品外观、物品功能、异常感官特征、社会观感 |
+| 第三阶段目标 | 只做设计与边界，不急于把所有对象重写 |
+| 与第四阶段关系 | 第四阶段把 descriptor 词表并入 WorldStyleProfile / NarrativeLexicon |
+| 与第五阶段关系 | 第五阶段的半开放结构模板必须声明 descriptor 字段约束 |
+| 详细文档 | `项目文档/阶段规划/隐标签与描述档案层规划_2026-06-12.txt` |
+
+推荐轻量结构：
+
+```python
+@dataclass(slots=True)
+class DescriptorProfile:
+    ref_id: str
+    profile_type: str  # character / place / object / structure / presence
+    appearance_tags: list[str]
+    function_tags: list[str]
+    behavior_tags: list[str]
+    sensory_tags: list[str]
+    social_read_tags: list[str]
+    notes: list[str]
+```
+
+AI 可以参与世界初始化标签生成，但边界应是：
+
+```text
+默认：固定池随机抽取，保证离线可复现
+可选：AI 只提出候选标签组合或权重调整
+必须：候选标签必须来自 approved descriptor pool
+必须：validator 校验数量、冲突、题材边界和对象类型适配
+必须：AI 初始化结果写入 audit，并可用 seed/fallback 重放
+禁止：AI 直接新增固定对象字段或绕过固定池写入任意标签
+```

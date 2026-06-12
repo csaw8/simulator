@@ -1,0 +1,122 @@
+Terrarium Project 隐标签与描述档案层规划
+
+日期：2026-06-12
+
+一、问题定位
+
+| 项 | 当前状态 |
+|---|---|
+| 人物性格 | 由 `role_tags / capability_tags / desire_tags / fear_tags / agency_mode` 间接表达 |
+| 建筑外观 | 由 `RegionNode.node_type / tags / ambient_detail` 临时推断 |
+| 物品外观 | 主要由 `Relic.relic_type / name / story_tags` 暗示 |
+| 物品功能 | 比外观更稳定，来自 relic/project/supply/node 类型和规则 |
+| 异常感官特征 | 分散在 summary、observer、presence dynamics 文案中 |
+| 主要缺口 | 很多“看起来像事实”的描述只存在于输出文本，没有进入可查询、可复用的世界状态 |
+
+当前隐标签不是完全没有，而是不集中、不显式、不稳定。下一步应补一个轻量描述档案层，先服务一致性和 AI 上下文，不要一次做成重系统。
+
+二、推荐结构
+
+```python
+@dataclass(slots=True)
+class DescriptorProfile:
+    ref_id: str
+    profile_type: str  # character / place / object / structure / presence
+    appearance_tags: list[str]
+    function_tags: list[str]
+    behavior_tags: list[str]
+    sensory_tags: list[str]
+    social_read_tags: list[str]
+    notes: list[str]
+```
+
+三、字段含义
+
+| 字段 | 用途 | 示例 |
+|---|---|---|
+| `appearance_tags` | 外观、材质、规模、损耗、空间印象 | `scarred_surface`, `black_composite`, `overbuilt_gate`, `sealed_drawer_bank` |
+| `function_tags` | 稳定用途、工作方式、接口能力 | `access_control`, `containment`, `routing`, `archive_storage`, `biosecurity_filter` |
+| `behavior_tags` | 人物/异常/组织的行为倾向 | `cautious`, `opportunistic`, `territorial`, `reactive`, `predatory` |
+| `sensory_tags` | 声音、光、气味、温度、信号等感官特征 | `low_hum`, `cold_light`, `ozone_smell`, `signal_flicker` |
+| `social_read_tags` | 外界如何理解该对象 | `trusted`, `feared`, `rumored`, `bureaucratic`, `sacred_to_locals` |
+| `notes` | 少量稳定补充文本，不承载规则判断 | `seen as an old access bottleneck` |
+
+四、对象适配
+
+| 对象 | 重点 descriptor |
+|---|---|
+| Character | `behavior_tags / social_read_tags / notes` |
+| RegionNode | `appearance_tags / function_tags / sensory_tags` |
+| Relic / Presence | `appearance_tags / function_tags / behavior_tags / sensory_tags` |
+| ProjectNetwork | `function_tags / social_read_tags / notes` |
+| SupplyLine | `function_tags / appearance_tags / social_read_tags` |
+| DynamicStructure | `behavior_tags / social_read_tags / notes` |
+| EmergentPresence | 全字段，尤其 `behavior_tags / sensory_tags` |
+
+五、生成方式
+
+| 方式 | 适用阶段 | 说明 |
+|---|---|---|
+| 固定池随机抽取 | 默认方式 | 继续保证离线、可复现、低成本 |
+| 规则加权抽取 | 第三/第四阶段可做 | 根据对象类型、地区压力、世界风格调整权重 |
+| AI 候选组合 | 第四阶段后可试点 | AI 只从 approved descriptor pool 中组合标签 |
+| AI 权重建议 | 第四/第五阶段可做 | AI 根据 world profile 建议标签权重，不直接写任意字段 |
+| AI 自由新增标签 | 第五阶段后才考虑 | 必须走 template/proposal/approval，不进入固定初始化直写 |
+
+六、AI 参与世界初始化标签生成的边界
+
+AI 有参与可能，但不建议让 AI 在初始化时直接生成任意标签。正确方式是：
+
+```text
+固定池提供候选 descriptor
+WorldStyleProfile 提供题材边界
+对象类型提供适配约束
+AI 只返回候选标签 ID 或权重调整
+validator 检查数量、冲突、对象适配和题材边界
+通过后写入 DescriptorProfile
+所有 AI 参与结果写入 audit
+失败时回退固定 seed 随机抽取
+```
+
+必须禁止：
+
+| 禁止项 | 原因 |
+|---|---|
+| AI 直接新增固定对象字段 | 会破坏固定模型稳定性 |
+| AI 输出不在词表内的任意标签并直接落库 | 会造成标签污染和查询不可控 |
+| 初始化阶段强依赖网络 AI | 会破坏离线可复现和测试稳定 |
+| AI 一次生成大段外观文本作为规则事实 | 文本难校验，后续难迁移 |
+| AI 绕过 audit | 无法追踪初始化差异来源 |
+
+七、与阶段规划的关系
+
+| 阶段 | 关系 |
+|---|---|
+| 第三阶段 V3-M | 只做设计、字段边界、固定池盘点和 AI 参与边界 |
+| 第四阶段 | 将 descriptor 词表纳入 `WorldStyleProfile / NarrativeLexicon`，实现默认 profile 下的标签池 |
+| 第五阶段 | 半开放结构模板必须声明 descriptor 字段约束，新模板不能无限扩展隐标签 |
+
+八、最小落地建议
+
+| 顺序 | 任务 | 验收 |
+|---:|---|---|
+| 1 | 盘点现有隐标签来源 | 列出 character / node / relic / ambient detail / labels 的标签池 |
+| 2 | 建立 descriptor pool 文档 | 每类标签有 ID、中文显示、适配对象、冲突组 |
+| 3 | 增加 `DescriptorProfile` 数据层 | 不改变现有输出，快照可保存读取 |
+| 4 | 初始化时固定池抽取 | 同 seed 可复现 |
+| 5 | summary/AI context 读取 descriptor | 输出更一致，但不泄漏内部 ID |
+| 6 | AI 候选组合试点 | 可关闭、可回退、有 audit |
+
+九、结论
+
+隐标签层应该先作为“描述档案”和“叙事一致性缓存”，不要立刻变成复杂规则系统。
+
+推荐原则：
+
+```text
+固定池先行
+AI 只做候选组合和权重建议
+validator 负责边界
+audit 保证可追踪
+fallback 保证离线可复现
+```

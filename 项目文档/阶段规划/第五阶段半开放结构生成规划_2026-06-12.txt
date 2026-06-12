@@ -11,6 +11,7 @@ Terrarium Project 第五阶段半开放结构生成规划
 | 核心目标 | 在不让 AI 直接修改固定 schema 的前提下，允许 AI 提出新的结构模板，并让系统在审批后实例化这些模板 |
 | 前置阶段 | 第三阶段 AI 动态结构闭环、第四阶段风格解耦与题材配置 |
 | 不做事项 | 不让 AI 直接新增 Python dataclass，不让 AI 直接写 WorldState 新字段，不让 AI 绕过 validator / audit / approval |
+| 隐标签前置 | 第三阶段 V3-M 规划 DescriptorProfile，第四阶段集中 descriptor 词表 |
 
 第五阶段解决的问题不是“让 AI 完全自由”，而是让 AI 的创造力进入一个可验证、可回滚、可审计的结构模板层。
 
@@ -48,6 +49,7 @@ class StructureTemplateProposal:
     fields: list[TemplateFieldSpec]
     lifecycle: TemplateLifecycleSpec
     allowed_effects: list[str]
+    descriptor_constraints: dict[str, list[str]]
     style_constraints: list[str]
     safety_notes: list[str]
     source: str
@@ -66,6 +68,7 @@ class ApprovedStructureTemplate:
     fields: list[TemplateFieldSpec]
     lifecycle: TemplateLifecycleSpec
     allowed_effects: list[str]
+    descriptor_constraints: dict[str, list[str]]
     status: str  # active / frozen / retired
     approved_by: str
     approved_at_tick: int
@@ -82,6 +85,7 @@ class TemplateInstance:
     scope_ref: str
     field_values: dict[str, str | int | float | bool | list[str]]
     linked_refs: list[str]
+    descriptor_values: dict[str, list[str]]
     pressure_score: float
     status: str  # active / cooling / archived
     created_at_tick: int
@@ -109,6 +113,7 @@ class TemplateInstance:
 | AI 直接新增 WorldState 字段 | 会破坏快照兼容和迁移边界 |
 | AI 直接修改固定对象字段 | 会污染第一、第二阶段固定模型 |
 | AI 自由定义无限字段 | 会导致 summary、查询、存档不可控 |
+| AI 自由定义无限隐标签 | 会让外观、功能、性格等 descriptor 空间污染，后续难查询和迁移 |
 | AI 绕过 approval 自动启用模板 | 会让 schema 质量不可控 |
 | AI 生成不可解释影响 | 所有影响必须走 Event / Relation / PressureThread |
 
@@ -118,6 +123,7 @@ class TemplateInstance:
 |---|---|
 | `WorldStyleProfile` | 限定模板题材边界，避免 AI 生成与世界风格冲突的结构 |
 | `NarrativeLexicon` | 提供模板标题、字段展示名、player/truth 表达规则 |
+| `DescriptorLexicon` | 限定新模板可使用的外观、功能、行为、感官、社会观感标签 |
 | 风格硬编码清单 | 避免新模板继续把题材词散落到代码 |
 | 默认 profile 回归测试 | 保证新模板不会稀释当前“现实未来异常文明”默认风格 |
 
