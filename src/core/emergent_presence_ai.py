@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from src.agents.llm_client import LLMClientError, build_siliconflow_client
+from src.agents.llm_client import LLMClientError, build_siliconflow_client, llm_source_label
 from src.core.ai_context import (
     build_emergent_presence_context,
     emergent_presence_context_signal,
@@ -88,10 +88,11 @@ def propose_emergent_presences_for_watch(
 
     llm_client = client or build_siliconflow_client(ai_config)
     if llm_client is None:
+        source_label = llm_source_label(ai_config)
         result = EmergentPresenceAIResult(
             source="none",
             applied=False,
-            error="SiliconFlow client unavailable",
+            error=f"{source_label} client unavailable",
             tier=tier.tier,
             signal_score=signal_score,
         )
@@ -112,7 +113,7 @@ def propose_emergent_presences_for_watch(
             else validate_emergent_presence_proposals(world, payload)
         )
         result = EmergentPresenceAIResult(
-            source="siliconflow",
+            source=llm_source_label(ai_config, llm_client),
             applied=apply,
             payload=payload,
             validation=validation,

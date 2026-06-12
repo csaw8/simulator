@@ -1,0 +1,46 @@
+DeepSeek 官方 API 迁移记录
+日期：2026-06-12
+
+迁移原因
+- SiliconFlow live 调用在当前环境中出现较多超时。
+- 项目改用 DeepSeek 官方 OpenAI-compatible Chat Completions 接口作为默认 provider。
+
+默认配置
+- provider: deepseek
+- base_url: https://api.deepseek.com
+- api_key_env: DEEPSEEK_API_KEY
+- model: deepseek-v4-pro
+- thinking_mode: disabled
+- reasoning_effort: high
+
+实现改动
+- src/agents/llm_client.py
+  - 新增 OpenAICompatibleClient。
+  - 新增 build_llm_client(...)。
+  - 保留 build_siliconflow_client(...) 作为兼容别名，避免旧调用点断裂。
+  - DeepSeek 请求体使用 thinking: {"type": "disabled"}。
+  - SiliconFlow 请求体继续使用 thinking_budget。
+- src/config/defaults.py / src/config/models.py / config/ai.yaml
+  - 默认 provider 切换到 DeepSeek。
+  - 新增 thinking_mode 与 reasoning_effort 配置字段。
+- observer / chronicler / intent / dynamic proposal / emergent proposal
+  - source 与 error 文案改为 provider-aware。
+  - DeepSeek 成功调用会记录 source=deepseek。
+
+配置方式
+- Windows 用户环境变量：
+  [Environment]::SetEnvironmentVariable("DEEPSEEK_API_KEY", "你的 DeepSeek API Key", "User")
+- 设置后需要打开新的 PowerShell / Codex 会话，或在当前会话临时设置：
+  $env:DEEPSEEK_API_KEY="你的 DeepSeek API Key"
+
+回退 SiliconFlow
+- 如需回退，将 config/ai.yaml 改为：
+  provider: siliconflow
+  base_url: https://api.siliconflow.cn/v1/chat/completions
+  api_key_env: SILICONFLOW_API_KEY
+  model: deepseek-ai/DeepSeek-V4-Pro
+
+验证计划
+- 单元测试验证 DeepSeek client 构造和 provider-specific payload。
+- 全量测试确认旧功能不回归。
+- 配置 DEEPSEEK_API_KEY 后，再运行 debug llm 和 propose=dynamic / propose=emergent live dry-run。

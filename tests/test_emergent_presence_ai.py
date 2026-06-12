@@ -196,7 +196,7 @@ class EmergentPresenceAITests(unittest.TestCase):
             )
 
         self.assertIn("Emergent presence AI proposal:", output)
-        self.assertIn("SiliconFlow client unavailable", output)
+        self.assertIn("client unavailable", output)
         self.assertIn("audit_id:", output)
         self.assertFalse(world.emergent_presences)
         self.assertEqual(len(world.ai_proposal_audits), 1)

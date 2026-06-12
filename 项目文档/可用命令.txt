@@ -6,6 +6,17 @@
 
 `python -m src.app.main`
 
+DeepSeek 官方 API Key 持久配置：
+
+`[Environment]::SetEnvironmentVariable("DEEPSEEK_API_KEY", "你的 DeepSeek API Key", "User")`
+
+当前默认 AI provider：
+
+- `provider: deepseek`
+- `api_key_env: DEEPSEEK_API_KEY`
+- `base_url: https://api.deepseek.com`
+- `model: deepseek-v4-pro`
+
 二、基础命令
 
 - `help`

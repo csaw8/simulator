@@ -10,14 +10,16 @@ DEFAULT_WORLD_CONFIG = {
 }
 
 DEFAULT_AI_CONFIG = {
-    "provider": "siliconflow",
-    "base_url": "https://api.siliconflow.cn/v1/chat/completions",
-    "api_key_env": "SILICONFLOW_API_KEY",
-    "model": "deepseek-ai/DeepSeek-V4-Pro",
+    "provider": "deepseek",
+    "base_url": "https://api.deepseek.com",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "model": "deepseek-v4-pro",
     "temperature": 0.4,
     "max_tokens": 160,
     "request_timeout_seconds": 90,
     "thinking_budget": 32,
+    "thinking_mode": "disabled",
+    "reasoning_effort": "high",
     "low_cost_max_tokens": 120,
     "low_cost_thinking_budget": 8,
     "medium_cost_max_tokens": 220,

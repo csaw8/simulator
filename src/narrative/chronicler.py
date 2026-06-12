@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.agents.llm_client import LLMClientError, build_siliconflow_client
+from src.agents.llm_client import LLMClientError, build_siliconflow_client, llm_source_label
 from src.core.ai_policy import evaluate_chronicler_llm_policy
 from src.core.ai_tiers import resolve_chronicler_tier
 from src.events.filters import select_chronicle_events
@@ -58,7 +58,7 @@ def generate_chronicle(
         text = str(payload.get("text", "")).strip()
         if not text:
             raise LLMClientError("Chronicler JSON missing text")
-        return ChronicleResult(source="siliconflow", text=text, tier=tier.tier)
+        return ChronicleResult(source=llm_source_label(ai_config, client), text=text, tier=tier.tier)
     except LLMClientError as exc:
         return ChronicleResult(
             source="fallback",

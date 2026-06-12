@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from src.agents.llm_client import LLMClientError, build_siliconflow_client
+from src.agents.llm_client import LLMClientError, build_siliconflow_client, llm_source_label
 from src.core.ai_context import (
     build_dynamic_structure_context,
     dynamic_structure_context_signal,
@@ -82,10 +82,11 @@ def propose_dynamic_structures_for_watch(
     llm_client = client or build_siliconflow_client(ai_config)
     tier = _dynamic_structure_tier(ai_config)
     if llm_client is None:
+        source_label = llm_source_label(ai_config)
         result = DynamicStructureAIResult(
             source="none",
             applied=False,
-            error="SiliconFlow client unavailable",
+            error=f"{source_label} client unavailable",
             tier=tier.tier,
             signal_score=signal_score,
         )
@@ -106,7 +107,7 @@ def propose_dynamic_structures_for_watch(
             else validate_dynamic_structure_proposals(world, payload)
         )
         result = DynamicStructureAIResult(
-            source="siliconflow",
+            source=llm_source_label(ai_config, llm_client),
             applied=apply,
             payload=payload,
             validation=validation,

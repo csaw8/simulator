@@ -182,7 +182,7 @@ class DynamicStructureAITests(unittest.TestCase):
             )
 
         self.assertIn("Dynamic structure proposal:", output)
-        self.assertIn("SiliconFlow client unavailable", output)
+        self.assertIn("client unavailable", output)
         self.assertIn("audit_id:", output)
         self.assertFalse(world.dynamic_structures)
         self.assertEqual(len(world.ai_proposal_audits), 1)

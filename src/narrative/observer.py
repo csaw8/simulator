@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
-from src.agents.llm_client import LLMClientError, build_siliconflow_client
+from src.agents.llm_client import LLMClientError, build_siliconflow_client, llm_source_label
 from src.agents.knowledge import build_character_knowledge_snapshot
 from src.core.ai_context import related_dynamic_structure_context_lines
 from src.core.ai_policy import evaluate_observer_llm_policy
@@ -55,7 +55,7 @@ def observe_region_with_ai(
 
     client = build_siliconflow_client(ai_config)
     if client is None:
-        return ObservationResult(source="none", text=None, error="SiliconFlow client unavailable")
+        return ObservationResult(source="none", text=None, error=f"{llm_source_label(ai_config)} client unavailable")
 
     civ_name = world.civilizations[region.civ_id].name if region.civ_id else "None"
     messages = _build_observer_messages(
@@ -114,7 +114,7 @@ def observe_character_with_ai(
 
     client = build_siliconflow_client(ai_config)
     if client is None:
-        return ObservationResult(source="none", text=None, error="SiliconFlow client unavailable")
+        return ObservationResult(source="none", text=None, error=f"{llm_source_label(ai_config)} client unavailable")
 
     messages = _build_observer_messages(
         title=f"Character {character.name} ({character.char_id})",
@@ -179,7 +179,7 @@ def observe_civilization_with_ai(
 
     client = build_siliconflow_client(ai_config)
     if client is None:
-        return ObservationResult(source="none", text=None, error="SiliconFlow client unavailable")
+        return ObservationResult(source="none", text=None, error=f"{llm_source_label(ai_config)} client unavailable")
 
     messages = _build_observer_messages(
         title=f"Civilization {civilization.name} ({civilization.civ_id})",
@@ -238,7 +238,7 @@ def observe_relic_with_ai(
 
     client = build_siliconflow_client(ai_config)
     if client is None:
-        return ObservationResult(source="none", text=None, error="SiliconFlow client unavailable")
+        return ObservationResult(source="none", text=None, error=f"{llm_source_label(ai_config)} client unavailable")
 
     messages = _build_observer_messages(
         title=f"{presence_display_name(relic)} {relic.name} ({relic.relic_id})",
@@ -309,7 +309,7 @@ def observe_faction_with_ai(
 
     client = build_siliconflow_client(ai_config)
     if client is None:
-        return ObservationResult(source="none", text=None, error="SiliconFlow client unavailable")
+        return ObservationResult(source="none", text=None, error=f"{llm_source_label(ai_config)} client unavailable")
 
     controlled_regions = [
         world.regions[region_id].name if region_id in world.regions else region_id
@@ -365,7 +365,7 @@ def _run_observer_completion(
         text = _sanitize_observer_text(str(payload.get("text", "")).strip())
         if not text:
             raise LLMClientError("Observer JSON missing text")
-        return ObservationResult(source="siliconflow", text=text, tier=tier.tier)
+        return ObservationResult(source=llm_source_label(ai_config, client), text=text, tier=tier.tier)
     except LLMClientError as exc:
         return ObservationResult(source="none", text=None, error=str(exc), tier=resolve_observer_tier(ai_config, mode=mode).tier)
 

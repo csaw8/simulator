@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from src.agents.fallback import Intent, build_fallback_intent_from_event
 from src.agents.knowledge import CharacterKnowledgeSnapshot, build_character_knowledge_snapshot
-from src.agents.llm_client import LLMClientError, build_siliconflow_client
+from src.agents.llm_client import LLMClientError, build_siliconflow_client, llm_source_label
 from src.agents.prompt_builder import build_intent_messages
 from src.agents.scheduler import WakeSchedule
 from src.core.ai_policy import evaluate_intent_llm_policy
@@ -36,7 +36,7 @@ def generate_intents(
     schedule: WakeSchedule,
     ai_config: dict[str, object],
 ) -> IntentBatch:
-    """Generate intents using SiliconFlow when available, otherwise fallback logic."""
+    """Generate intents using configured LLM provider when available, otherwise fallback logic."""
     client = build_siliconflow_client(ai_config)
     errors: list[str] = []
     protagonist_intents = [
@@ -94,7 +94,11 @@ def _build_intent_for_character(
                 max_tokens=tier.max_tokens,
                 thinking_budget=tier.thinking_budget,
             )
-            return _intent_from_payload(character, payload)
+            return _intent_from_payload(
+                character,
+                payload,
+                source=llm_source_label(ai_config, client),
+            )
         except LLMClientError as exc:
             errors.append(str(exc))
             pass
@@ -1193,8 +1197,8 @@ def _intent_signal_score(
     return score
 
 
-def _intent_from_payload(character: Character, payload: dict[str, object]) -> Intent:
-    """Convert a JSON payload from SiliconFlow into an Intent."""
+def _intent_from_payload(character: Character, payload: dict[str, object], *, source: str) -> Intent:
+    """Convert a JSON payload from the configured LLM into an Intent."""
     target_ref = str(payload.get("target_ref") or character.current_region_id)
     if not target_ref.startswith("region_"):
         target_ref = character.current_region_id
@@ -1209,7 +1213,7 @@ def _intent_from_payload(character: Character, payload: dict[str, object]) -> In
         urgency=_coerce_urgency(payload.get("urgency")),
         proposed_action=str(payload.get("proposed_action") or "Take a cautious local action"),
         tone=str(payload.get("tone") or "restrained"),
-        source="siliconflow",
+        source=source,
     )
 
 

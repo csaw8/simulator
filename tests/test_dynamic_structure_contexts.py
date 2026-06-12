@@ -107,7 +107,7 @@ class DynamicStructureContextTests(unittest.TestCase):
                 view="truth",
             )
 
-        self.assertEqual(result.source, "siliconflow")
+        self.assertEqual(result.source, "deepseek")
         prompt = fake_client.messages[-1]["content"]
         self.assertIn("Related dynamic structures:", prompt)
         self.assertIn("Context Trace", prompt)

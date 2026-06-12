@@ -102,7 +102,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  targets dynamic [n]     Show high-signal targets for dynamic proposal sampling\n"
             "  audit proposals [n]      Show recent AI proposal audit records\n"
             "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
-            "  debug llm         Test one live SiliconFlow request on the top wake candidate\n"
+            "  debug llm         Test one live configured LLM request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
             "  save              Save the current world snapshot\n"
             "  db export [path]  Export current state to SQLite query DB\n"

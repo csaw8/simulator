@@ -33,6 +33,8 @@ class AIConfig:
     max_tokens: int
     request_timeout_seconds: int
     thinking_budget: int
+    thinking_mode: str
+    reasoning_effort: str
     low_cost_max_tokens: int
     low_cost_thinking_budget: int
     medium_cost_max_tokens: int
