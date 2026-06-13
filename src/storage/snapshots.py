@@ -21,6 +21,8 @@ from src.world.open_structure_template import (
     approved_template_registry_to_dict,
     template_approval_queue_from_payload,
     template_approval_queue_to_dict,
+    template_instance_store_from_payload,
+    template_instance_store_to_dict,
 )
 from src.world.pressure_thread import PressureThread
 from src.world.project import ProjectNetwork
@@ -61,6 +63,7 @@ def save_world_state(world: WorldState, path: Path = DEFAULT_SNAPSHOT_PATH) -> N
         "ai_proposal_audits": {key: asdict(value) for key, value in world.ai_proposal_audits.items()},
         "template_approval_queue": template_approval_queue_to_dict(world.template_approval_queue),
         "approved_template_registry": approved_template_registry_to_dict(world.approved_template_registry),
+        "template_instances": template_instance_store_to_dict(world.template_instances),
         "pressure_threads": {key: asdict(value) for key, value in world.pressure_threads.items()},
         "relations": {key: asdict(value) for key, value in world.relations.items()},
         "event_stream": {
@@ -122,6 +125,9 @@ def load_world_state(path: Path = DEFAULT_SNAPSHOT_PATH) -> WorldState:
     )
     world.approved_template_registry = approved_template_registry_from_payload(
         payload.get("approved_template_registry", {})
+    )
+    world.template_instances = template_instance_store_from_payload(
+        payload.get("template_instances", {})
     )
     world.pressure_threads = {
         key: PressureThread(**value) for key, value in payload.get("pressure_threads", {}).items()

@@ -12,9 +12,11 @@ from src.world.open_structure_template import (
     ApprovedStructureTemplateRegistry,
     MAX_TEMPLATE_FIELDS,
     TemplateApprovalQueue,
+    TemplateInstanceStore,
     approved_template_registry_from_payload,
     approved_template_registry_to_dict,
     build_template_proposal_audit_record,
+    create_template_instance,
     decide_template_approval_entry,
     get_active_approved_template,
     list_active_approved_templates,
@@ -28,11 +30,15 @@ from src.world.open_structure_template import (
     submit_template_proposal_to_queue,
     template_approval_queue_from_payload,
     template_approval_queue_to_dict,
+    template_instance_from_payload,
+    template_instance_store_from_payload,
+    template_instance_store_to_dict,
     template_proposal_audit_to_dict,
     template_proposal_report_to_dict,
     template_from_payload,
     template_schema_to_dict,
     validate_template_proposal_detailed,
+    validate_template_instance,
     validate_template_proposal,
     validate_template_payload,
     validate_template_schema,
@@ -118,6 +124,41 @@ def _approved_queue_with_proposal():
         reason="Approved for registry tests.",
     )
     return queue, proposal
+
+
+def _registry_with_approved_template():
+    queue, _proposal = _approved_queue_with_proposal()
+    registry = ApprovedStructureTemplateRegistry()
+    result = register_approved_template_from_queue(
+        registry,
+        queue,
+        "proposal_salvage_pressure_marker",
+        registered_by="registry_keeper",
+        current_tick=60,
+    )
+    assert result.accepted, result.errors
+    return registry
+
+
+def _valid_instance_payload():
+    return {
+        "instance_id": "instance_salvage_pressure_marker",
+        "template_id": "salvage_pressure_marker",
+        "template_version": 1,
+        "scope_ref": "region:region_001",
+        "field_values": {
+            "public_name": "North route pressure",
+            "pressure_level": "medium",
+            "linked_route": "supply_line:supply_001",
+        },
+        "linked_refs": ["supply_line:supply_001"],
+        "descriptor_values": {"behavior": ["reactive"]},
+        "pressure_score": 0.62,
+        "status": "active",
+        "created_at_tick": 61,
+        "updated_at_tick": 61,
+        "source": "unit_test",
+    }
 
 
 class OpenStructureTemplateTests(unittest.TestCase):
@@ -730,6 +771,114 @@ class OpenStructureTemplateTests(unittest.TestCase):
         self.assertIn("Approved template registry:", registry_output)
         self.assertIn("salvage_pressure_marker", registry_output)
         self.assertIn("status=active", registry_output)
+
+    def test_template_instance_validates_against_active_approved_template(self) -> None:
+        registry = _registry_with_approved_template()
+        instance = template_instance_from_payload(_valid_instance_payload())
+
+        result = validate_template_instance(registry, instance)
+
+        self.assertTrue(result.accepted, result.errors)
+
+    def test_template_instance_rejects_unknown_template(self) -> None:
+        registry = ApprovedStructureTemplateRegistry()
+        instance = template_instance_from_payload(_valid_instance_payload())
+
+        result = validate_template_instance(registry, instance)
+
+        self.assertFalse(result.accepted)
+        self.assertIn("is not active in approved registry", result.errors[0])
+
+    def test_template_instance_rejects_missing_required_field_and_bad_enum(self) -> None:
+        registry = _registry_with_approved_template()
+        payload = _valid_instance_payload()
+        payload["field_values"].pop("public_name")
+        payload["field_values"]["pressure_level"] = "extreme"
+        instance = template_instance_from_payload(payload)
+
+        result = validate_template_instance(registry, instance)
+
+        self.assertFalse(result.accepted)
+        self.assertIn("field 'public_name' is required", result.errors)
+        self.assertTrue(any("enum field 'pressure_level'" in error for error in result.errors))
+
+    def test_template_instance_rejects_unknown_field_and_wrong_type(self) -> None:
+        registry = _registry_with_approved_template()
+        payload = _valid_instance_payload()
+        payload["field_values"]["public_name"] = 123
+        payload["field_values"]["extra_field"] = "not allowed"
+        instance = template_instance_from_payload(payload)
+
+        result = validate_template_instance(registry, instance)
+
+        self.assertFalse(result.accepted)
+        self.assertTrue(any("text field 'public_name'" in error for error in result.errors))
+        self.assertIn("unknown instance field 'extra_field'", result.errors)
+
+    def test_create_template_instance_stores_valid_instance_and_rejects_duplicate(self) -> None:
+        registry = _registry_with_approved_template()
+        store = TemplateInstanceStore()
+        instance = template_instance_from_payload(_valid_instance_payload())
+
+        first = create_template_instance(store, registry, instance)
+        second = create_template_instance(store, registry, instance)
+
+        self.assertTrue(first.accepted, first.errors)
+        self.assertFalse(second.accepted)
+        self.assertIn("already exists", second.errors[0])
+        self.assertIn("instance_salvage_pressure_marker", store.instances)
+
+    def test_template_instance_store_round_trips_plain_data(self) -> None:
+        registry = _registry_with_approved_template()
+        store = TemplateInstanceStore()
+        instance = template_instance_from_payload(_valid_instance_payload())
+        create_template_instance(store, registry, instance)
+
+        payload = template_instance_store_to_dict(store)
+        loaded = template_instance_store_from_payload(payload)
+
+        self.assertIn("instance_salvage_pressure_marker", loaded.instances)
+        loaded_instance = loaded.instances["instance_salvage_pressure_marker"]
+        self.assertEqual(loaded_instance.template_id, "salvage_pressure_marker")
+        self.assertEqual(loaded_instance.field_values["pressure_level"], "medium")
+        self.assertEqual(loaded_instance.descriptor_values["behavior"], ["reactive"])
+
+    def test_template_instances_are_preserved_in_snapshots(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        world.approved_template_registry = _registry_with_approved_template()
+        instance = template_instance_from_payload(_valid_instance_payload())
+        create_template_instance(world.template_instances, world.approved_template_registry, instance)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "world.json"
+            save_world_state(world, path)
+            loaded = load_world_state(path)
+
+        self.assertIn("instance_salvage_pressure_marker", loaded.template_instances.instances)
+        loaded_instance = loaded.template_instances.instances["instance_salvage_pressure_marker"]
+        self.assertEqual(loaded_instance.template_id, "salvage_pressure_marker")
+
+    def test_cli_templates_instantiate_and_list_instances(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        world.approved_template_registry = _registry_with_approved_template()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            context = CommandContext(
+                engine=WorldEngine(world, ai_config=DEFAULT_AI_CONFIG),
+                world_config=WorldConfig(**DEFAULT_WORLD_CONFIG),
+                ai_config=AIConfig(**DEFAULT_AI_CONFIG),
+                snapshot_path=Path(tmp) / "world.json",
+            )
+            create_output = handle_command(
+                context,
+                "templates instantiate salvage_pressure_marker instance_salvage_pressure_marker region:region_001 "
+                "public_name=North pressure pressure_level=medium linked_route=supply_line:supply_001",
+            )
+            list_output = handle_command(context, "templates instances 5")
+
+        self.assertIn("Template instance created: instance_salvage_pressure_marker", create_output)
+        self.assertIn("Template instances:", list_output)
+        self.assertIn("instance_salvage_pressure_marker", list_output)
 
 
 if __name__ == "__main__":

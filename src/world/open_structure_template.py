@@ -28,6 +28,7 @@ ALLOWED_TEMPLATE_PROPOSAL_STATUSES = {"pending", "validated", "rejected", "withd
 ALLOWED_TEMPLATE_APPROVAL_STATUSES = {"pending", "approved", "rejected", "frozen", "withdrawn"}
 ALLOWED_TEMPLATE_APPROVAL_ACTIONS = {"approve", "reject", "freeze", "withdraw"}
 ALLOWED_APPROVED_TEMPLATE_STATUSES = {"active", "frozen", "retired"}
+ALLOWED_TEMPLATE_INSTANCE_STATUSES = {"active", "cooling", "archived"}
 ALLOWED_TEMPLATE_VALIDATION_ISSUE_CATEGORIES = {
     "metadata",
     "schema",
@@ -46,6 +47,8 @@ MAX_ALLOWED_EFFECTS = 5
 MAX_ID_LENGTH = 48
 MAX_LABEL_LENGTH = 80
 MAX_TEXT_LENGTH = 240
+MAX_INSTANCE_LINKED_REFS = 12
+MAX_INSTANCE_DESCRIPTOR_VALUES_PER_CATEGORY = 8
 
 
 @dataclass(slots=True)
@@ -197,6 +200,31 @@ class ApprovedStructureTemplateRegistry:
     """Registry of approved templates that later instance generation may use."""
 
     templates: dict[str, ApprovedStructureTemplate] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class TemplateInstance:
+    """One instance created from an active approved template."""
+
+    instance_id: str
+    template_id: str
+    template_version: int
+    scope_ref: str
+    field_values: dict[str, str | int | float | bool | list[str]] = field(default_factory=dict)
+    linked_refs: list[str] = field(default_factory=list)
+    descriptor_values: dict[str, list[str]] = field(default_factory=dict)
+    pressure_score: float = 0.0
+    status: str = "active"
+    created_at_tick: int = 0
+    updated_at_tick: int = 0
+    source: str = "manual"
+
+
+@dataclass(slots=True)
+class TemplateInstanceStore:
+    """Store for semi-open template instances."""
+
+    instances: dict[str, TemplateInstance] = field(default_factory=dict)
 
 
 def template_from_payload(payload: dict[str, Any]) -> SemiOpenStructureTemplate:
@@ -773,6 +801,139 @@ def format_approved_template_registry(
     return "\n".join(lines)
 
 
+def template_instance_from_payload(payload: dict[str, Any], *, current_tick: int = 0) -> TemplateInstance:
+    """Build a template instance from plain JSON-like data."""
+    created_at_tick = _optional_non_negative_int(payload.get("created_at_tick"))
+    updated_at_tick = _optional_non_negative_int(payload.get("updated_at_tick"))
+    return TemplateInstance(
+        instance_id=_normalize_id(payload.get("instance_id", "")),
+        template_id=_normalize_id(payload.get("template_id", "")),
+        template_version=_optional_positive_int(payload.get("template_version")) or 1,
+        scope_ref=_clean_text(payload.get("scope_ref", ""), limit=MAX_LABEL_LENGTH),
+        field_values=_clean_instance_field_values(payload.get("field_values", {})),
+        linked_refs=_clean_text_list(payload.get("linked_refs", []), limit=MAX_INSTANCE_LINKED_REFS),
+        descriptor_values=_clean_instance_descriptor_values(payload.get("descriptor_values", {})),
+        pressure_score=_clamped_float(payload.get("pressure_score", 0.0), minimum=0.0, maximum=1.0),
+        status=_normalize_id(payload.get("status", "active")),
+        created_at_tick=current_tick if created_at_tick is None else created_at_tick,
+        updated_at_tick=current_tick if updated_at_tick is None else updated_at_tick,
+        source=_clean_text(payload.get("source", "manual"), limit=MAX_LABEL_LENGTH) or "manual",
+    )
+
+
+def validate_template_instance(
+    registry: ApprovedStructureTemplateRegistry,
+    instance: TemplateInstance,
+) -> TemplateValidationResult:
+    """Validate an instance against its active approved template."""
+    errors: list[str] = []
+    if not instance.instance_id:
+        errors.append("instance_id is required")
+    if instance.template_version < 1:
+        errors.append("template_version must be positive")
+    if not instance.scope_ref:
+        errors.append("scope_ref is required")
+    if instance.status not in ALLOWED_TEMPLATE_INSTANCE_STATUSES:
+        errors.append(f"unsupported instance status {instance.status!r}")
+    if instance.created_at_tick < 0 or instance.updated_at_tick < 0:
+        errors.append("instance ticks must be non-negative")
+    if instance.updated_at_tick < instance.created_at_tick:
+        errors.append("updated_at_tick must be greater than or equal to created_at_tick")
+    if not 0.0 <= instance.pressure_score <= 1.0:
+        errors.append("pressure_score must be between 0.0 and 1.0")
+    if len(instance.linked_refs) > MAX_INSTANCE_LINKED_REFS:
+        errors.append(f"too many linked_refs; max is {MAX_INSTANCE_LINKED_REFS}")
+    record = get_active_approved_template(registry, instance.template_id)
+    if record is None:
+        errors.append(f"template {instance.template_id!r} is not active in approved registry")
+        return TemplateValidationResult(False, errors)
+    template = record.template
+    if instance.template_version != template.version:
+        errors.append(
+            f"template_version {instance.template_version} does not match active template version {template.version}"
+        )
+    _validate_instance_fields(template, instance, errors)
+    _validate_instance_descriptor_values(template, instance, errors)
+    return TemplateValidationResult(not errors, errors)
+
+
+def create_template_instance(
+    store: TemplateInstanceStore,
+    registry: ApprovedStructureTemplateRegistry,
+    instance: TemplateInstance,
+) -> TemplateValidationResult:
+    """Validate and store one template instance."""
+    result = validate_template_instance(registry, instance)
+    if not result.accepted:
+        return result
+    if instance.instance_id in store.instances:
+        return TemplateValidationResult(False, [f"instance {instance.instance_id!r} already exists"])
+    store.instances[instance.instance_id] = instance
+    return TemplateValidationResult(True, [])
+
+
+def template_instance_to_dict(instance: TemplateInstance) -> dict[str, object]:
+    """Serialize a template instance to plain data."""
+    return {
+        "instance_id": instance.instance_id,
+        "template_id": instance.template_id,
+        "template_version": instance.template_version,
+        "scope_ref": instance.scope_ref,
+        "field_values": dict(instance.field_values),
+        "linked_refs": list(instance.linked_refs),
+        "descriptor_values": {category: list(tags) for category, tags in instance.descriptor_values.items()},
+        "pressure_score": instance.pressure_score,
+        "status": instance.status,
+        "created_at_tick": instance.created_at_tick,
+        "updated_at_tick": instance.updated_at_tick,
+        "source": instance.source,
+    }
+
+
+def template_instance_store_to_dict(store: TemplateInstanceStore) -> dict[str, object]:
+    """Serialize a template instance store to plain data."""
+    return {
+        "instances": {
+            instance_id: template_instance_to_dict(instance)
+            for instance_id, instance in sorted(store.instances.items())
+        }
+    }
+
+
+def template_instance_store_from_payload(payload: dict[str, Any]) -> TemplateInstanceStore:
+    """Build an instance store from plain data."""
+    store = TemplateInstanceStore()
+    raw_instances = payload.get("instances", {}) if isinstance(payload, dict) else {}
+    if not isinstance(raw_instances, dict):
+        return store
+    for raw_instance_id, raw_instance in raw_instances.items():
+        if not isinstance(raw_instance, dict):
+            continue
+        instance = template_instance_from_payload(raw_instance)
+        instance_id = _normalize_id(raw_instance_id) or instance.instance_id
+        if instance_id:
+            store.instances[instance_id] = instance
+    return store
+
+
+def format_template_instances(store: TemplateInstanceStore, *, limit: int = 10) -> str:
+    """Render template instances for CLI inspection."""
+    instances = sorted(
+        store.instances.values(),
+        key=lambda instance: (instance.updated_at_tick, instance.instance_id),
+        reverse=True,
+    )[: max(1, limit)]
+    if not instances:
+        return "Template instances: empty"
+    lines = ["Template instances:"]
+    for instance in instances:
+        lines.append(
+            f"  {instance.instance_id} template={instance.template_id} "
+            f"v{instance.template_version} status={instance.status} pressure={instance.pressure_score:.2f}"
+        )
+    return "\n".join(lines)
+
+
 def mark_template_proposal_validated(proposal: StructureTemplateProposal) -> TemplateValidationResult:
     """Validate and update proposal status without approving it."""
     result = validate_template_proposal(proposal)
@@ -1236,6 +1397,119 @@ def _normalize_queue_status(raw_value: Any) -> str:
 def _normalize_approved_template_status(raw_value: Any) -> str:
     status = _normalize_id(raw_value)
     return status if status in ALLOWED_APPROVED_TEMPLATE_STATUSES else "active"
+
+
+def _validate_instance_fields(
+    template: SemiOpenStructureTemplate,
+    instance: TemplateInstance,
+    errors: list[str],
+) -> None:
+    specs = {field_spec.field_id: field_spec for field_spec in template.fields}
+    for field_id, field_spec in specs.items():
+        if field_spec.required and field_id not in instance.field_values:
+            errors.append(f"field {field_id!r} is required")
+            continue
+        if field_id not in instance.field_values:
+            continue
+        value = instance.field_values[field_id]
+        field_error = _validate_instance_field_value(field_spec, value)
+        if field_error:
+            errors.append(field_error)
+    for field_id in instance.field_values:
+        if field_id not in specs:
+            errors.append(f"unknown instance field {field_id!r}")
+
+
+def _validate_instance_field_value(field_spec: TemplateFieldSpec, value: object) -> str | None:
+    if field_spec.field_type == "text":
+        if not isinstance(value, str):
+            return f"text field {field_spec.field_id!r} must be a string"
+        if field_spec.max_length is not None and len(value) > field_spec.max_length:
+            return f"text field {field_spec.field_id!r} exceeds max_length {field_spec.max_length}"
+    elif field_spec.field_type == "integer":
+        if not isinstance(value, int) or isinstance(value, bool):
+            return f"integer field {field_spec.field_id!r} must be an integer"
+    elif field_spec.field_type == "number":
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return f"number field {field_spec.field_id!r} must be numeric"
+    elif field_spec.field_type == "boolean":
+        if not isinstance(value, bool):
+            return f"boolean field {field_spec.field_id!r} must be boolean"
+    elif field_spec.field_type == "enum":
+        if not isinstance(value, str) or value not in field_spec.allowed_values:
+            return f"enum field {field_spec.field_id!r} value is not allowed"
+    elif field_spec.field_type == "ref":
+        if not isinstance(value, str) or not value:
+            return f"ref field {field_spec.field_id!r} must be a non-empty string"
+    elif field_spec.field_type in {"ref_list", "tag_list"}:
+        if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+            return f"{field_spec.field_type} field {field_spec.field_id!r} must be a list of strings"
+    return None
+
+
+def _validate_instance_descriptor_values(
+    template: SemiOpenStructureTemplate,
+    instance: TemplateInstance,
+    errors: list[str],
+) -> None:
+    for category, tags in instance.descriptor_values.items():
+        if category not in DESCRIPTOR_CATEGORIES:
+            errors.append(f"unsupported descriptor category {category!r}")
+            continue
+        if len(tags) > MAX_INSTANCE_DESCRIPTOR_VALUES_PER_CATEGORY:
+            errors.append(f"too many descriptor values for {category!r}")
+        allowed_tags = set(template.descriptor_constraints.get(category, []))
+        for tag in tags:
+            if allowed_tags and tag not in allowed_tags:
+                errors.append(f"descriptor value {tag!r} is not allowed for {category!r}")
+            elif not allowed_tags and not is_approved_descriptor_tag(
+                tag,
+                category=category,
+                profile_type=template.descriptor_profile_type,
+                style_id=_primary_style(template),
+            ):
+                errors.append(f"descriptor value {tag!r} is not approved for {category!r}")
+
+
+def _clean_instance_field_values(raw_values: Any) -> dict[str, str | int | float | bool | list[str]]:
+    if not isinstance(raw_values, dict):
+        return {}
+    cleaned: dict[str, str | int | float | bool | list[str]] = {}
+    for raw_key, raw_value in raw_values.items():
+        key = _normalize_id(raw_key)
+        if not key:
+            continue
+        if isinstance(raw_value, bool):
+            cleaned[key] = raw_value
+        elif isinstance(raw_value, int):
+            cleaned[key] = raw_value
+        elif isinstance(raw_value, float):
+            cleaned[key] = raw_value
+        elif isinstance(raw_value, str):
+            cleaned[key] = _clean_text(raw_value, limit=MAX_TEXT_LENGTH)
+        elif isinstance(raw_value, list):
+            cleaned[key] = _clean_text_list(raw_value, limit=MAX_FIELD_ALLOWED_VALUES)
+    return cleaned
+
+
+def _clean_instance_descriptor_values(raw_values: Any) -> dict[str, list[str]]:
+    if not isinstance(raw_values, dict):
+        return {}
+    cleaned: dict[str, list[str]] = {}
+    for raw_category, raw_tags in raw_values.items():
+        category = _normalize_id(raw_category)
+        if not category:
+            continue
+        cleaned[category] = _clean_id_list(raw_tags, limit=MAX_INSTANCE_DESCRIPTOR_VALUES_PER_CATEGORY)
+    return cleaned
+
+
+def _clamped_float(raw_value: Any, *, minimum: float, maximum: float) -> float:
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return minimum
+    return max(minimum, min(maximum, value))
 
 
 def _issues_from_payload(raw_issues: Any) -> list[TemplateValidationIssue]:

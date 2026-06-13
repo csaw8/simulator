@@ -61,11 +61,14 @@ from src.storage.snapshots import save_world_state
 from src.storage.db import DEFAULT_SQLITE_PATH, export_world_to_sqlite, format_sqlite_stats
 from src.world.builder import build_world
 from src.world.open_structure_template import (
+    create_template_instance,
     decide_template_approval_entry,
     format_approved_template_registry,
     format_template_approval_decision,
     format_template_approval_queue,
+    format_template_instances,
     register_approved_template_from_queue,
+    template_instance_from_payload,
 )
 
 
@@ -116,7 +119,9 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
             "  templates queue [n]      Show template approval queue\n"
             "  templates registry [n]   Show approved template registry\n"
+            "  templates instances [n]  Show template instances\n"
             "  templates register <proposal_id> <reviewer> [note...]  Register an approved template proposal\n"
+            "  templates instantiate <template_id> <instance_id> <scope_ref> [field=value...]  Create a bounded template instance\n"
             "  templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]  Review a queued template proposal\n"
             "  debug llm         Test one live configured LLM request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
@@ -238,6 +243,14 @@ def _handle_templates(context: CommandContext, parts: list[str]) -> str:
             except ValueError:
                 return "Usage: templates registry [n]"
         return format_approved_template_registry(context.engine.world.approved_template_registry, limit=limit)
+    if subcommand == "instances":
+        limit = 10
+        if len(parts) >= 3:
+            try:
+                limit = max(1, int(parts[2]))
+            except ValueError:
+                return "Usage: templates instances [n]"
+        return format_template_instances(context.engine.world.template_instances, limit=limit)
     if subcommand == "register":
         if len(parts) < 4:
             return "Usage: templates register <proposal_id> <reviewer> [note...]"
@@ -256,6 +269,38 @@ def _handle_templates(context: CommandContext, parts: list[str]) -> str:
             return "Template registry registration rejected:\n  " + "\n  ".join(result.errors)
         save_world_state(context.engine.world, context.snapshot_path)
         return f"Template registered: {proposal_id}"
+    if subcommand == "instantiate":
+        if len(parts) < 5:
+            return "Usage: templates instantiate <template_id> <instance_id> <scope_ref> [field=value...]"
+        template_id = parts[2]
+        instance_id = parts[3]
+        scope_ref = parts[4]
+        field_values = _parse_template_instance_fields(parts[5:])
+        record = context.engine.world.approved_template_registry.templates.get(template_id)
+        template_version = record.template.version if record is not None else 1
+        instance = template_instance_from_payload(
+            {
+                "instance_id": instance_id,
+                "template_id": template_id,
+                "template_version": template_version,
+                "scope_ref": scope_ref,
+                "field_values": field_values,
+                "status": "active",
+                "created_at_tick": context.engine.world.current_tick,
+                "updated_at_tick": context.engine.world.current_tick,
+                "source": "manual_cli",
+            },
+            current_tick=context.engine.world.current_tick,
+        )
+        result = create_template_instance(
+            context.engine.world.template_instances,
+            context.engine.world.approved_template_registry,
+            instance,
+        )
+        if not result.accepted:
+            return "Template instance rejected:\n  " + "\n  ".join(result.errors)
+        save_world_state(context.engine.world, context.snapshot_path)
+        return f"Template instance created: {instance.instance_id}"
     if subcommand not in {"approve", "reject", "freeze", "withdraw"}:
         return _template_usage()
     if len(parts) < 4:
@@ -279,9 +324,41 @@ def _handle_templates(context: CommandContext, parts: list[str]) -> str:
 def _template_usage() -> str:
     return (
         "Usage: templates queue [n] | templates registry [n] | "
+        "templates instances [n] | "
         "templates register <proposal_id> <reviewer> [note...] | "
+        "templates instantiate <template_id> <instance_id> <scope_ref> [field=value...] | "
         "templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
     )
+
+
+def _parse_template_instance_fields(raw_fields: list[str]) -> dict[str, object]:
+    values: dict[str, object] = {}
+    for raw_field in raw_fields:
+        if "=" not in raw_field:
+            continue
+        key, raw_value = raw_field.split("=", 1)
+        if not key:
+            continue
+        values[key] = _parse_template_instance_value(raw_value)
+    return values
+
+
+def _parse_template_instance_value(raw_value: str) -> object:
+    value = raw_value.strip()
+    if value.lower() == "true":
+        return True
+    if value.lower() == "false":
+        return False
+    if "," in value:
+        return [item.strip() for item in value.split(",") if item.strip()]
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        return value
 
 
 def _handle_propose(context: CommandContext, parts: list[str]) -> str:

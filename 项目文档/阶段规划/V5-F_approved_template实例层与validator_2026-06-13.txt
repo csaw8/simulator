@@ -1,0 +1,140 @@
+Terrarium Project V5-F：approved template 实例层与 validator
+
+日期：2026-06-13
+
+一、批次定位
+
+| 项 | 内容 |
+|---|---|
+| 所属阶段 | 第五阶段：半开放结构生成与 AI 模板提案阶段 |
+| 批次 | V5-F |
+| 核心目标 | 只允许 active approved template 创建受控实例，并对实例字段值进行严格校验 |
+| 前置依赖 | V5-E approved template registry |
+| 当前 AI 边界 | 已建立 AI 可填充的数据接口边界，但本批次未直接调用外部 AI |
+
+二、本批次实现内容
+
+| 类型 | 内容 |
+|---|---|
+| 新增对象 | `TemplateInstance` |
+| 新增对象 | `TemplateInstanceStore` |
+| 新增函数 | `template_instance_from_payload(...)` |
+| 新增函数 | `validate_template_instance(...)` |
+| 新增函数 | `create_template_instance(...)` |
+| 新增序列化 | `template_instance_to_dict(...)` |
+| 新增序列化 | `template_instance_store_to_dict(...)` |
+| 新增反序列化 | `template_instance_store_from_payload(...)` |
+| 新增 CLI 格式化 | `format_template_instances(...)` |
+| WorldState | 新增 `template_instances` |
+| Snapshot | 保存 / 读取 `template_instances` |
+
+三、TemplateInstance 字段
+
+| 字段 | 含义 |
+|---|---|
+| `instance_id` | 实例唯一 ID |
+| `template_id` | 来源 approved template |
+| `template_version` | 来源模板版本 |
+| `scope_ref` | 实例作用范围引用 |
+| `field_values` | 按模板字段定义填写的受控值 |
+| `linked_refs` | 有界关联引用列表 |
+| `descriptor_values` | 来自模板约束或 approved descriptor pool 的标签 |
+| `pressure_score` | 0.0 至 1.0 的实例压力分值 |
+| `status` | `active / cooling / archived` |
+| `created_at_tick` | 创建 tick |
+| `updated_at_tick` | 最近更新 tick |
+| `source` | 实例来源 |
+
+四、实例 validator
+
+| 校验项 | 规则 |
+|---|---|
+| Registry 来源 | template 必须在 approved registry 中且状态为 `active` |
+| 版本 | instance template_version 必须等于 active template version |
+| 必填字段 | 模板 required 字段必须存在 |
+| 未知字段 | 未在模板中声明的字段被拒绝 |
+| text | 必须是字符串且不超过 max_length |
+| integer | 必须是整数，不接受 boolean |
+| number | 必须是数字，不接受 boolean |
+| boolean | 必须是 boolean |
+| enum | 必须来自 allowed_values |
+| ref | 必须是非空字符串 |
+| ref_list / tag_list | 必须是非空字符串列表 |
+| descriptor_values | 必须来自模板 descriptor_constraints 或 approved descriptor pool |
+| pressure_score | 必须在 0.0 至 1.0 |
+| 生命周期 | status 必须是 `active / cooling / archived` |
+| tick | 非负，updated_at_tick 不得早于 created_at_tick |
+| 重复实例 | store 中已有相同 instance_id 时拒绝 |
+
+五、CLI
+
+| 命令 | 作用 |
+|---|---|
+| `templates instances [n]` | 查看最近模板实例 |
+| `templates instantiate <template_id> <instance_id> <scope_ref> [field=value...]` | 手动创建一个受控实例，用于验证实例层 |
+
+CLI 创建实例时仍然必须经过 `create_template_instance(...)` 和 `validate_template_instance(...)`，不能绕过 validator。
+
+六、WorldState 与 Snapshot
+
+| 项 | 内容 |
+|---|---|
+| WorldState | `template_instances: TemplateInstanceStore` |
+| summary | 新增 `template_instances` 数量 |
+| snapshot save | 保存实例 store |
+| snapshot load | 恢复实例 store；老快照默认空 store |
+
+七、与 AI 的关系
+
+V5-F 当前完成的是 AI 实例生成所需的安全落点：
+
+```text
+AI JSON payload
+-> template_instance_from_payload
+-> validate_template_instance
+-> create_template_instance
+-> TemplateInstanceStore
+```
+
+本批次没有直接调用外部 AI。后续如果接 AI，只允许 AI 填充已有 active approved template 的字段值，不能新增 schema、不能绕过 validator、不能直接修改固定对象。
+
+八、明确不做
+
+| 不做项 | 原因 |
+|---|---|
+| 不直接调用 AI | 先验证实例 schema 和 validator 稳定性 |
+| 不允许实例新增字段 | 字段必须来自 approved template |
+| 不解析/修改固定世界对象 | linked_refs 仍是受控引用，不直接写固定对象 |
+| 不开放任意 descriptor tag | descriptor_values 必须来自模板约束或 approved pool |
+| 不生成 Event / Relation / PressureThread | 影响桥接留给后续受控切片 |
+
+九、验证记录
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_open_structure_template` | 49 tests OK |
+| `python -m unittest discover -s tests` | 205 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+十、下一批衔接
+
+| 批次 | 建议任务 |
+|---|---|
+| V5-F 后续小切片 | 增加 AI adapter，只生成 approved template instance payload，仍走现有 validator |
+| V5-G | 模板版本、实例迁移、冻结、退休和回滚 |
+| V5-H | 长跑污染防护、模板与实例数量限制、重复检测 |
+
+十一、结论
+
+V5-F 最小实例层完成后，第五阶段已经形成完整的受控结构链路：
+
+```text
+AI / manual template proposal
+-> validator
+-> approval queue
+-> approved template registry
+-> validated template instance
+-> TemplateInstanceStore
+```
+
+当前系统已经具备接入 AI 实例填充的安全基础，但尚未让 AI 自动创建实例。这样避免在实例 validator 尚未稳定前，把外部生成直接接入世界状态。
