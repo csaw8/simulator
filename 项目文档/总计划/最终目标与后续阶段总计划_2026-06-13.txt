@@ -1,0 +1,146 @@
+Terrarium Project 最终目标与后续阶段总计划
+
+日期：2026-06-13
+
+一、最终产品目标
+
+| 项 | 目标 |
+|---|---|
+| 核心定位 | 文本优先的长期文明模拟器，可观察、可保存、可扩展、可叙事 |
+| 文明跨度 | 支持文明从原始社会发展到多种终局：灭绝、停滞、飞升、宇宙级、超维度等 |
+| 世界风格 | 可由用户选择，也可由 AI 提案并经 validator / approval 启用 |
+| 文明差异 | 每个文明拥有发展倾向、禁区、优势、弱点和可能的上限 |
+| AI 扩展 | 固定结构作为主干，AI 可生成合理并行结构和事件，但必须走 proposal / validator / audit / apply |
+| 观察能力 | 可观察文明、区域、人物、派系、物品、遗迹、并行结构和关键事件 |
+| 角色策略 | 重要角色主动演化，普通角色被动演化或观察时按上下文生成 |
+| 跨世界遗产 | 已模拟世界可压缩为遗迹、传承、信号、神话、接触对象，小概率进入后续新世界 |
+| 时间线 | 支持自定义时间尺度；可选支持回退、分支、重放 |
+| 叙事输出 | 可选择人物视角生成短篇小说，主题可覆盖文明主线、大事件、个人抉择、温馨日常等 |
+| UI | 最终提供简约方便的本地 UI，开发期继续以 CLI 验证为主 |
+
+二、当前真实状态
+
+| 层 | 当前状态 | 评价 |
+|---|---|---|
+| 固定世界模型 | 已有文明、区域、角色、派系、遗物、工程、补给线、节点、事件流 | 可作为局部世界层基础 |
+| 观察层 | 已有 player / truth 视角，支持 watch 多类对象 | 可继续扩展 |
+| AI 接入 | 默认 DeepSeek 官方 API，已验证真实 API 通路 | 可用但输出质量需 prompt / adapter 改进 |
+| 风格层 | 已有 WorldStyleProfile、NarrativeLexicon、DescriptorLexicon、DescriptorProfile | 具备题材解耦基础 |
+| 半开放结构 | V5 已完成 template proposal -> approval -> registry -> instance -> watch | 可作为 AI 并行结构基础 |
+| 存档 | JSON snapshot 为权威存档，SQLite 为导出查询层 | 可扩展 |
+| UI | 当前主要是 CLI | 产品化不足 |
+| 大历史层 | 尚未实现 CivilizationArc / EraModel / DevelopmentDomain | 是最大缺口 |
+
+三、总体完成度判断
+
+| 口径 | 估计完成度 |
+|---|---:|
+| 技术原型层 | 约 35% |
+| 可演示文本世界模拟器 | 约 20%-25% |
+| 最终产品层 | 约 15%-20% |
+| 从原始到超维终局的完整文明模拟 | 约 8%-12% |
+
+四、核心架构调整方向
+
+当前架构不应推翻，而应分层扩展：
+
+```text
+SimulationRun / MetaWorld
+-> CivilizationArc 大历史层
+-> EraModel / DevelopmentDomain / CivilizationPathProfile
+-> LocalWorld 局部世界层，即当前 WorldState 主体
+-> Character / Item / Structure / Event 观察层
+-> Narrative / Story 输出层
+-> LegacyArchive 跨世界遗产层
+-> UI / API adapter
+```
+
+关键原则：
+
+| 原则 | 说明 |
+|---|---|
+| 不把所有时代塞进当前 WorldState | 当前 WorldState 继续承担局部可观察世界 |
+| 新增 CivilizationArc | 负责文明阶段、发展路线、压力、终局 |
+| AI 不直接改核心 schema | 继续走 proposal / validator / audit / apply |
+| 半开放结构需要影响桥接 | TemplateInstance 不只被观察，还要能影响事件权重和文明路线 |
+| 旧世界压缩为 LegacySeed | 后续世界只小概率注入摘要化遗产，不复制完整旧世界 |
+
+五、后续阶段规划
+
+| 阶段 | 名称 | 核心目标 | 完成标志 |
+|---|---|---|---|
+| V6 | 大历史层最小实现 | 让文明拥有阶段、发展领域、路线限制、压力和终局雏形 | 可用 CLI 推进 CivilizationArc，并保存读取 |
+| V7 | 大历史与局部世界联动 | 让 CivilizationArc 影响当前事件流、builder、角色和区域局势 | 文明阶段变化能改变局部世界表现 |
+| V8 | 跨世界遗产和彩蛋 | 旧模拟世界压缩为遗迹、传承、信号、神话、接触对象 | 新世界可小概率引用旧世界 LegacySeed |
+| V9 | 小说化叙事输出 | 从事件流和角色视角生成短篇小说 | 可按角色、主题、长度生成正史或传闻故事 |
+| V10 | 简约 UI | 提供本地 UI 观察、推进、审批、故事生成 | 非开发者可通过 UI 操作核心功能 |
+
+六、V6 详细计划
+
+| 顺序 | 批次 | 内容 | 说明 |
+|---:|---|---|---|
+| 1 | V6-A | CivilizationArc 最小 schema | 文明大历史状态，绑定现有 civilization_id |
+| 2 | V6-B | EraModel | 定义 primitive、agrarian、urban、imperial、industrial、information、spacefaring、cosmic、transdimensional 等阶段 |
+| 3 | V6-C | DevelopmentDomain | 定义生存、农业、冶金、制度、能源、计算、AI、太空、异常、灵能、生态、维度等发展领域 |
+| 4 | V6-D | CivilizationPathProfile | 每个文明的发展偏向、禁区、优势、弱点、上限 |
+| 5 | V6-E | TransitionRule | 阶段推进、停滞、崩溃、灭绝和飞升的最小规则 |
+| 6 | V6-F | TerminalOutcome | 结构化文明结局：extinct、stagnant、collapsed、ascended、cosmic、transdimensional 等 |
+| 7 | V6-G | Snapshot / SQLite | 大历史状态可保存、读取、导出 |
+| 8 | V6-H | CLI | `arc status`、`arc step`、`watch civ <id> arc` |
+| 9 | V6-I | 测试与长跑 smoke | 100-300 abstract ticks 不爆炸，容量和状态合法 |
+| 10 | V6-Z | V6 封口文档 | 记录完成范围、缺口和 V7 入口 |
+
+七、V6-A 最小 schema 建议
+
+| 对象 | 字段建议 |
+|---|---|
+| `CivilizationArc` | `arc_id`、`civilization_id`、`era_id`、`age_ticks`、`population_scale`、`knowledge_level`、`energy_level`、`social_complexity`、`ecological_pressure`、`stability`、`dominant_domains`、`blocked_domains`、`active_pressures`、`terminal_outcome` |
+| `EraModel` | `era_id`、`label`、`order`、`min_requirements`、`typical_domains`、`event_rate_profile` |
+| `DevelopmentDomainState` | `domain_id`、`level`、`affinity`、`locked`、`risks` |
+| `CivilizationPathProfile` | `profile_id`、`preferred_domains`、`forbidden_domains`、`risk_biases`、`ascension_bias`、`collapse_bias` |
+| `TerminalOutcome` | `outcome_id`、`status`、`reason`、`tick`、`legacy_potential` |
+
+八、近期不建议做的事
+
+| 不建议事项 | 原因 |
+|---|---|
+| 现在直接做完整 UI | 底层大历史 schema 未稳定，UI 会返工 |
+| 让 AI 自由新增 Python 类 | 会破坏测试、审计和快照兼容 |
+| 直接把当前世界改成全时代模型 | 会污染已有局部世界层 |
+| 一次性做完整科技树 | 应先做 DevelopmentDomain 抽象，再逐步细化 |
+| 立即做超维复杂规则 | 先让终局作为结构化 outcome 存在，不急于复杂模拟 |
+
+九、下一轮开工建议
+
+下一轮对话直接从 V6-A 开始：
+
+```text
+目标：新增 CivilizationArc 大历史层最小 schema。
+要求：不推翻当前 WorldState；先做数据层、validator、snapshot、最小初始化和测试；不要急着 UI。
+```
+
+优先检查文件：
+
+| 文件 | 用途 |
+|---|---|
+| `src/world/state.py` | WorldState 聚合状态 |
+| `src/world/civilization.py` | 当前文明对象 |
+| `src/world/builder.py` | 世界初始化 |
+| `src/storage/snapshots.py` | JSON snapshot |
+| `src/interfaces/commands.py` | CLI |
+| `tests/test_snapshots.py` | snapshot 回归 |
+| `tests/test_open_structure_template.py` | V5 风格的 validator / snapshot 测试参考 |
+
+十、当前 Git 状态基线
+
+截至本文档创建前，工作树干净。上一关键提交：
+
+```text
+2ff64f6 chore: harden and validate v5 template flow
+```
+
+远端：
+
+```text
+https://github.com/csaw8/simulator.git
+```
