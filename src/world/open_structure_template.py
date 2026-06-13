@@ -49,6 +49,9 @@ MAX_LABEL_LENGTH = 80
 MAX_TEXT_LENGTH = 240
 MAX_INSTANCE_LINKED_REFS = 12
 MAX_INSTANCE_DESCRIPTOR_VALUES_PER_CATEGORY = 8
+MAX_TEMPLATE_APPROVAL_QUEUE_ENTRIES = 40
+MAX_APPROVED_TEMPLATE_REGISTRY_ENTRIES = 32
+MAX_TEMPLATE_INSTANCES = 120
 
 
 @dataclass(slots=True)
@@ -432,6 +435,53 @@ def submit_template_proposal_to_queue(
     current_tick: int = 0,
 ) -> TemplateApprovalQueueEntry:
     """Validate and submit a template proposal into the approval queue."""
+    if proposal.proposal_id not in queue.entries and len(queue.entries) >= MAX_TEMPLATE_APPROVAL_QUEUE_ENTRIES:
+        proposal.status = "rejected"
+        proposal.validation_errors = [f"template approval queue is full; max is {MAX_TEMPLATE_APPROVAL_QUEUE_ENTRIES}"]
+        entry = TemplateApprovalQueueEntry(
+            proposal=proposal,
+            status="rejected",
+            submitted_at_tick=max(0, current_tick),
+            validation_report=TemplateProposalValidationReport(
+                proposal_id=proposal.proposal_id,
+                accepted=False,
+                issues=[
+                    TemplateValidationIssue(
+                        category="safety",
+                        message=proposal.validation_errors[0],
+                        path="template_approval_queue",
+                    )
+                ],
+                status_after_validation="rejected",
+            ),
+        )
+        if proposal.proposal_id:
+            queue.entries[proposal.proposal_id] = entry
+        return entry
+    duplicate_template_id = _find_duplicate_template_proposal(queue, proposal)
+    if duplicate_template_id:
+        proposal.status = "rejected"
+        proposal.validation_errors = [f"duplicate template_id {duplicate_template_id!r} is already in approval queue"]
+        entry = TemplateApprovalQueueEntry(
+            proposal=proposal,
+            status="rejected",
+            submitted_at_tick=max(0, current_tick),
+            validation_report=TemplateProposalValidationReport(
+                proposal_id=proposal.proposal_id,
+                accepted=False,
+                issues=[
+                    TemplateValidationIssue(
+                        category="schema",
+                        message=proposal.validation_errors[0],
+                        path="template.template_id",
+                    )
+                ],
+                status_after_validation="rejected",
+            ),
+        )
+        if proposal.proposal_id:
+            queue.entries[proposal.proposal_id] = entry
+        return entry
     report = mark_template_proposal_validated_detailed(proposal)
     audit = build_template_proposal_audit_record(proposal, report, current_tick=current_tick)
     status = "pending" if report.accepted else "rejected"
@@ -648,6 +698,11 @@ def register_approved_template_from_queue(
         return TemplateValidationResult(False, [f"proposal {normalized_id!r} is not in approval queue"])
     if entry.status != "approved":
         return TemplateValidationResult(False, [f"proposal {normalized_id!r} is not approved"])
+    if (
+        entry.proposal.template.template_id not in registry.templates
+        and len(registry.templates) >= MAX_APPROVED_TEMPLATE_REGISTRY_ENTRIES
+    ):
+        return TemplateValidationResult(False, [f"approved template registry is full; max is {MAX_APPROVED_TEMPLATE_REGISTRY_ENTRIES}"])
     if not entry.proposal.reviewed_by or entry.proposal.reviewed_at_tick is None:
         return TemplateValidationResult(False, ["approved proposal is missing review metadata"])
     clean_registered_by = _clean_text(registered_by, limit=MAX_LABEL_LENGTH)
@@ -863,6 +918,8 @@ def create_template_instance(
     instance: TemplateInstance,
 ) -> TemplateValidationResult:
     """Validate and store one template instance."""
+    if instance.instance_id not in store.instances and len(store.instances) >= MAX_TEMPLATE_INSTANCES:
+        return TemplateValidationResult(False, [f"template instance store is full; max is {MAX_TEMPLATE_INSTANCES}"])
     result = validate_template_instance(registry, instance)
     if not result.accepted:
         return result
@@ -1387,6 +1444,18 @@ def _status_after_approval_action(action: str) -> str:
     if action == "withdraw":
         return "withdrawn"
     return "pending"
+
+
+def _find_duplicate_template_proposal(queue: TemplateApprovalQueue, proposal: StructureTemplateProposal) -> str | None:
+    template_id = proposal.template.template_id
+    if not template_id:
+        return None
+    for existing_id, entry in queue.entries.items():
+        if existing_id == proposal.proposal_id:
+            continue
+        if entry.proposal.template.template_id == template_id and entry.status in {"pending", "approved", "frozen"}:
+            return template_id
+    return None
 
 
 def _normalize_queue_status(raw_value: Any) -> str:

@@ -29,6 +29,14 @@ from src.core.emergent_presence_ai import (
     format_emergent_presence_ai_result,
     propose_emergent_presences_for_watch,
 )
+from src.core.template_instance_ai import (
+    format_template_instance_ai_result,
+    propose_template_instance,
+)
+from src.core.structure_template_ai import (
+    format_structure_template_ai_result,
+    propose_structure_template,
+)
 from src.events.query import select_events
 from src.events.taxonomy import event_matches_focus
 from src.interfaces.stream_view import (
@@ -122,6 +130,8 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  templates instances [n]  Show template instances\n"
             "  templates register <proposal_id> <reviewer> [note...]  Register an approved template proposal\n"
             "  templates instantiate <template_id> <instance_id> <scope_ref> [field=value...]  Create a bounded template instance\n"
+            "  templates propose-instance <template_id> <scope_ref> [apply]  Ask AI to fill one approved template instance\n"
+            "  templates propose-template [apply] [guidance...]  Ask AI to propose one new template; apply queues it for review\n"
             "  templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]  Review a queued template proposal\n"
             "  debug llm         Test one live configured LLM request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
@@ -301,6 +311,35 @@ def _handle_templates(context: CommandContext, parts: list[str]) -> str:
             return "Template instance rejected:\n  " + "\n  ".join(result.errors)
         save_world_state(context.engine.world, context.snapshot_path)
         return f"Template instance created: {instance.instance_id}"
+    if subcommand == "propose-instance":
+        if len(parts) < 4:
+            return "Usage: templates propose-instance <template_id> <scope_ref> [apply]"
+        template_id = parts[2]
+        scope_ref = parts[3]
+        apply = len(parts) >= 5 and parts[4].lower() == "apply"
+        result = propose_template_instance(
+            context.engine.world,
+            template_id=template_id,
+            scope_ref=scope_ref,
+            ai_config=context.ai_config.to_dict(),
+            apply=apply,
+        )
+        if apply and result.validation.accepted:
+            save_world_state(context.engine.world, context.snapshot_path)
+        return format_template_instance_ai_result(result)
+    if subcommand == "propose-template":
+        apply = len(parts) >= 3 and parts[2].lower() == "apply"
+        guidance_start = 3 if apply else 2
+        guidance = " ".join(parts[guidance_start:])
+        result = propose_structure_template(
+            context.engine.world,
+            ai_config=context.ai_config.to_dict(),
+            apply=apply,
+            guidance=guidance,
+        )
+        if apply and result.validation.accepted:
+            save_world_state(context.engine.world, context.snapshot_path)
+        return format_structure_template_ai_result(result)
     if subcommand not in {"approve", "reject", "freeze", "withdraw"}:
         return _template_usage()
     if len(parts) < 4:
@@ -327,6 +366,8 @@ def _template_usage() -> str:
         "templates instances [n] | "
         "templates register <proposal_id> <reviewer> [note...] | "
         "templates instantiate <template_id> <instance_id> <scope_ref> [field=value...] | "
+        "templates propose-instance <template_id> <scope_ref> [apply] | "
+        "templates propose-template [apply] [guidance...] | "
         "templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
     )
 

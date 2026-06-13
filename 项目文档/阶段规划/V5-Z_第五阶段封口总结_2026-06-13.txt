@@ -1,0 +1,137 @@
+Terrarium Project V5-Z：第五阶段封口总结
+
+日期：2026-06-13
+
+一、阶段定位
+
+| 项 | 内容 |
+|---|---|
+| 阶段 | 第五阶段 |
+| 名称 | 半开放结构生成与 AI 模板提案阶段 |
+| 核心成果 | AI 可以受控提出新结构模板，并基于 active approved template 生成实例 |
+| 核心边界 | AI 不直接改 Python dataclass，不直接写 WorldState 新字段，不绕过 validator / audit / approval / registry |
+
+二、已完成批次
+
+| 批次 | 内容 | 状态 |
+|---|---|---|
+| V5-A | 半开放结构模板最小 schema | 完成 |
+| V5-B | `StructureTemplateProposal` 数据层 | 完成 |
+| V5-C | 模板 proposal validator 与审计结果对象 | 完成 |
+| V5-D | 模板审批队列 | 完成 |
+| V5-E | approved template registry | 完成 |
+| V5-F | approved template 实例层与 validator | 完成 |
+| V5-F2 | AI 基于 active approved template 生成实例 | 完成 |
+| V5-F3 | AI 提出新结构模板并入审批队列 | 完成 |
+| V5-H-lite | 容量限制与重复模板防护 | 完成 |
+
+三、最终链路
+
+```text
+AI / manual template proposal
+-> proposal_from_payload
+-> validate_template_proposal / detailed report
+-> TemplateProposalAuditRecord
+-> TemplateApprovalQueue
+-> explicit approve / reject / freeze / withdraw
+-> ApprovedStructureTemplateRegistry
+-> AI / manual TemplateInstance payload
+-> validate_template_instance
+-> TemplateInstanceStore
+-> snapshot / CLI / audit
+```
+
+四、AI 当前负责的内容
+
+| 能力 | 说明 |
+|---|---|
+| AI 模板提案 | `propose_structure_template(...)` 生成 `StructureTemplateProposal` payload |
+| AI 模板入队 | `templates propose-template apply ...` 只把合法 proposal 放入审批队列，不自动 approve |
+| AI 实例生成 | `propose_template_instance(...)` 基于 active approved template 填写实例字段 |
+| AI 实例落库 | 只有显式 `apply=True` / CLI `apply` 才进入 `TemplateInstanceStore` |
+| AI 审计 | 使用 `AIProposalAudit` 记录 `structure_template` 与 `template_instance` |
+
+五、CLI
+
+| 命令 | 作用 |
+|---|---|
+| `templates queue [n]` | 查看模板审批队列 |
+| `templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]` | 审批队列决策 |
+| `templates registry [n]` | 查看 approved template registry |
+| `templates register <proposal_id> <reviewer> [note...]` | 将 approved proposal 注册为 active template |
+| `templates instances [n]` | 查看 template instances |
+| `templates instantiate <template_id> <instance_id> <scope_ref> [field=value...]` | 手动创建实例 |
+| `templates propose-instance <template_id> <scope_ref> [apply]` | AI 生成 template instance |
+| `templates propose-template [apply] [guidance...]` | AI 生成 structure template proposal |
+
+六、污染防护
+
+| 防护项 | 当前规则 |
+|---|---|
+| 模板字段数量 | 最多 8 |
+| 文本字段 | 必须声明 `max_length`，且不超过 240 |
+| 枚举字段 | 必须声明 `allowed_values` |
+| ref 字段 | 必须声明 `ref_types` |
+| descriptor | 必须来自模板约束或 approved descriptor pool |
+| approval queue | 最多 40 条 |
+| approved registry | 最多 32 条 |
+| template instances | 最多 120 条 |
+| 重复模板 | pending / approved / frozen 中相同 `template_id` 被拒绝 |
+| 同版本 registry 覆盖 | 拒绝同版本或更低版本覆盖 |
+| 实例重复 | 拒绝重复 `instance_id` |
+
+七、存档
+
+| WorldState 字段 | 内容 |
+|---|---|
+| `template_approval_queue` | 模板审批队列 |
+| `approved_template_registry` | approved template registry |
+| `template_instances` | 模板实例 store |
+| `ai_proposal_audits` | AI 模板/实例审计记录 |
+
+JSON snapshot 仍是权威存档；SQLite 仍只作为查询/审计导出方向，不作为本阶段主 schema 来源。
+
+八、仍然不做的事项
+
+| 不做项 | 原因 |
+|---|---|
+| AI 直接新增 Python dataclass | 破坏代码审查和测试边界 |
+| AI 直接新增 WorldState 字段 | 破坏快照兼容和迁移 |
+| AI 自动 approve / register | 模板启用必须显式审批 |
+| AI 自动修改固定对象 | 只能通过后续受控影响桥接 |
+| AI 自由新增 descriptor tag | 仍需后续 descriptor proposal / approval 体系 |
+
+九、后续建议
+
+| 阶段 | 建议内容 |
+|---|---|
+| V5-G | 模板版本升级、冻结、退休、旧实例迁移和回滚 |
+| V5-H | 100-300 tick 长跑污染防护验收 |
+| V6 | SQLite 审计分析、查询视图、报表化 |
+| 后续 | AI 自由新增 descriptor tag proposal |
+
+十、结论
+
+第五阶段已经完成“AI 受控扩展世界结构”的基础闭环。
+
+和第三阶段的核心区别已经落地：
+
+| 第三阶段 | 第五阶段 |
+|---|---|
+| AI 填固定 dataclass | AI 可提出新 JSON 模板 |
+| 结构类型由代码预先写死 | 结构类型由 approved template registry 管控 |
+| 实例直接进入固定动态结构 | 先模板审批，再实例 validator |
+| 防护重点是内容污染 | 防护重点是 schema 污染和实例污染 |
+
+当前系统已经允许：
+
+```text
+AI 提出新结构模板
+-> 人工/规则审批
+-> 注册为 approved template
+-> AI 基于模板生成实例
+-> validator 校验
+-> 显式 apply 后进入世界状态
+```
+
+这标志着第五阶段基本结束。后续工作应从“继续新增能力”转向“版本治理、迁移回滚、长跑稳定性和查询审计”。
