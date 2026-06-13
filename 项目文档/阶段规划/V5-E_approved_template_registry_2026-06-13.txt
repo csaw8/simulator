@@ -1,0 +1,117 @@
+Terrarium Project V5-E：approved template registry
+
+日期：2026-06-13
+
+一、批次定位
+
+| 项 | 内容 |
+|---|---|
+| 所属阶段 | 第五阶段：半开放结构生成与 AI 模板提案阶段 |
+| 批次 | V5-E |
+| 核心目标 | 建立 approved template registry，作为后续模板实例化的唯一权威来源 |
+| 前置依赖 | V5-C validator / audit，V5-D approval queue |
+| 关键边界 | 本批次只注册 approved template，不创建 template instance，不让 AI 直接实例化 |
+
+二、本批次实现内容
+
+| 类型 | 内容 |
+|---|---|
+| 新增对象 | `ApprovedStructureTemplate` |
+| 新增对象 | `ApprovedStructureTemplateRegistry` |
+| 新增函数 | `register_approved_template_from_queue(...)` |
+| 新增函数 | `get_active_approved_template(...)` |
+| 新增函数 | `list_active_approved_templates(...)` |
+| 新增函数 | `set_approved_template_registry_status(...)` |
+| 新增序列化 | `approved_template_to_dict(...)` |
+| 新增序列化 | `approved_template_registry_to_dict(...)` |
+| 新增反序列化 | `approved_template_registry_from_payload(...)` |
+| 新增 CLI 格式化 | `format_approved_template_registry(...)` |
+| WorldState | 新增 `approved_template_registry` |
+| Snapshot | 保存 / 读取 `approved_template_registry` |
+| CLI | 新增 `templates registry [n]` 和 `templates register <proposal_id> <reviewer> [note...]` |
+
+三、registry 状态
+
+| 状态 | 含义 |
+|---|---|
+| `active` | 可被后续 V5-F 实例生成读取 |
+| `frozen` | 暂停新实例生成，但保留记录 |
+| `retired` | 不再用于新实例生成，历史仍可读取 |
+
+四、注册规则
+
+| 规则 | 说明 |
+|---|---|
+| 只接收 approved 队列条目 | `TemplateApprovalQueueEntry.status` 必须是 `approved` |
+| 必须有审批元数据 | proposal 需要 `reviewed_by` 和 `reviewed_at_tick` |
+| 必须有注册人 | `registered_by` 不能为空 |
+| 注册前重跑 schema validator | 防止 approval 后 template 被篡改 |
+| 同版本不可覆盖 | registry 已有同 template_id 且版本不低于新版本时拒绝 |
+| 注册后 template.status | 设置为 `approved`，但不创建实例 |
+
+五、与 V5-D 的关系
+
+| 层 | 职责 |
+|---|---|
+| Approval Queue | 记录 proposal 是否通过审批 |
+| Registry | 记录哪些 approved template 可以被后续实例化流程读取 |
+| Template Instance | 不在 V5-E 实现，后续 V5-F 才开始 |
+
+当前链路：
+
+```text
+StructureTemplateProposal
+-> V5-C validate / audit
+-> V5-D approval queue
+-> V5-E approved template registry
+```
+
+六、CLI
+
+| 命令 | 作用 |
+|---|---|
+| `templates registry [n]` | 查看 approved template registry |
+| `templates register <proposal_id> <reviewer> [note...]` | 将已 approved 队列条目注册进 registry |
+
+注册失败时，CLI 返回 validator / registry 拒绝原因；注册成功时保存 snapshot。
+
+七、WorldState 与 Snapshot
+
+| 项 | 内容 |
+|---|---|
+| WorldState | `approved_template_registry: ApprovedStructureTemplateRegistry` |
+| summary | 新增 `approved_template_registry` 计数 |
+| snapshot save | 保存 registry plain dict |
+| snapshot load | 读取 registry；老快照无字段时为空 registry |
+
+八、明确不做
+
+| 不做项 | 原因 |
+|---|---|
+| 不创建 TemplateInstance | V5-F 单独处理实例 schema、字段值 validator、生命周期 |
+| 不调用 AI 生成实例 | V5-F 才允许 AI 填充 approved template |
+| 不绕过 approval queue | registry 只能从 approved queue entry 注册 |
+| 不删除历史模板 | 状态使用 frozen / retired 保留历史 |
+| 不自由新增 descriptor tag | 仍后置到第五阶段后半或更后阶段 |
+
+九、验证记录
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_open_structure_template` | 41 tests OK |
+| `python -m unittest discover -s tests` | 197 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+十、下一批衔接
+
+| 批次 | 建议任务 |
+|---|---|
+| V5-F | 基于 active approved template 创建 TemplateInstance，AI 只能填字段值 |
+| V5-G | 模板版本、冻结、退休、迁移和回滚 |
+| V5-H | 长跑污染防护与模板/实例数量控制 |
+
+十一、结论
+
+V5-E 完成后，半开放结构生成主线已经具备从 proposal 到 approved registry 的完整治理路径。
+
+重要的是，registry 仍然不是实例层。它只是“哪些模板允许被实例化”的权威清单。真正的实例字段值校验、关联 ref 校验、生命周期和观察层接入，全部留给 V5-F。

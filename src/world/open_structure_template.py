@@ -27,6 +27,7 @@ ALLOWED_TEMPLATE_REGISTRY_STATUSES = {"pending", "approved", "rejected", "frozen
 ALLOWED_TEMPLATE_PROPOSAL_STATUSES = {"pending", "validated", "rejected", "withdrawn"}
 ALLOWED_TEMPLATE_APPROVAL_STATUSES = {"pending", "approved", "rejected", "frozen", "withdrawn"}
 ALLOWED_TEMPLATE_APPROVAL_ACTIONS = {"approve", "reject", "freeze", "withdraw"}
+ALLOWED_APPROVED_TEMPLATE_STATUSES = {"active", "frozen", "retired"}
 ALLOWED_TEMPLATE_VALIDATION_ISSUE_CATEGORIES = {
     "metadata",
     "schema",
@@ -175,6 +176,27 @@ class StructureTemplateProposal:
     reviewed_by: str | None = None
     reviewed_at_tick: int | None = None
     decision_notes: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ApprovedStructureTemplate:
+    """Approved registry record for one semi-open structure template."""
+
+    template: SemiOpenStructureTemplate
+    source_proposal_id: str
+    approved_by: str
+    approved_at_tick: int
+    registered_by: str
+    registered_at_tick: int
+    status: str = "active"
+    registry_notes: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ApprovedStructureTemplateRegistry:
+    """Registry of approved templates that later instance generation may use."""
+
+    templates: dict[str, ApprovedStructureTemplate] = field(default_factory=dict)
 
 
 def template_from_payload(payload: dict[str, Any]) -> SemiOpenStructureTemplate:
@@ -579,6 +601,175 @@ def format_template_approval_decision(decision: TemplateApprovalDecision) -> str
     ]
     if decision.reason:
         lines.append(f"  reason: {decision.reason}")
+    return "\n".join(lines)
+
+
+def register_approved_template_from_queue(
+    registry: ApprovedStructureTemplateRegistry,
+    queue: TemplateApprovalQueue,
+    proposal_id: str,
+    *,
+    registered_by: str,
+    current_tick: int = 0,
+    notes: list[str] | None = None,
+) -> TemplateValidationResult:
+    """Register an approved queue entry as an active approved template."""
+    normalized_id = _normalize_id(proposal_id)
+    entry = queue.entries.get(normalized_id)
+    if entry is None:
+        return TemplateValidationResult(False, [f"proposal {normalized_id!r} is not in approval queue"])
+    if entry.status != "approved":
+        return TemplateValidationResult(False, [f"proposal {normalized_id!r} is not approved"])
+    if not entry.proposal.reviewed_by or entry.proposal.reviewed_at_tick is None:
+        return TemplateValidationResult(False, ["approved proposal is missing review metadata"])
+    clean_registered_by = _clean_text(registered_by, limit=MAX_LABEL_LENGTH)
+    if not clean_registered_by:
+        return TemplateValidationResult(False, ["registered_by is required"])
+    schema_result = validate_template_schema(entry.proposal.template)
+    if not schema_result.accepted:
+        return schema_result
+    template_id = entry.proposal.template.template_id
+    existing = registry.templates.get(template_id)
+    if existing is not None and existing.template.version >= entry.proposal.template.version:
+        return TemplateValidationResult(
+            False,
+            [f"template {template_id!r} version {entry.proposal.template.version} is not newer than registry version"],
+        )
+    entry.proposal.template.status = "approved"
+    registry.templates[template_id] = ApprovedStructureTemplate(
+        template=entry.proposal.template,
+        source_proposal_id=entry.proposal.proposal_id,
+        approved_by=entry.proposal.reviewed_by,
+        approved_at_tick=entry.proposal.reviewed_at_tick,
+        registered_by=clean_registered_by,
+        registered_at_tick=max(0, current_tick),
+        status="active",
+        registry_notes=_clean_text_list(notes or [], limit=8),
+    )
+    return TemplateValidationResult(True, [])
+
+
+def get_active_approved_template(
+    registry: ApprovedStructureTemplateRegistry,
+    template_id: str,
+) -> ApprovedStructureTemplate | None:
+    """Return an active approved template by id."""
+    record = registry.templates.get(_normalize_id(template_id))
+    if record is None or record.status != "active":
+        return None
+    return record
+
+
+def list_active_approved_templates(
+    registry: ApprovedStructureTemplateRegistry,
+) -> list[ApprovedStructureTemplate]:
+    """Return active approved templates in stable order."""
+    return [
+        record
+        for record in sorted(
+            registry.templates.values(),
+            key=lambda item: (item.template.template_id, item.template.version),
+        )
+        if record.status == "active"
+    ]
+
+
+def set_approved_template_registry_status(
+    registry: ApprovedStructureTemplateRegistry,
+    template_id: str,
+    status: str,
+    *,
+    note: str = "",
+) -> TemplateValidationResult:
+    """Set registry status for an approved template without deleting history."""
+    normalized_id = _normalize_id(template_id)
+    normalized_status = _normalize_id(status)
+    if normalized_status not in ALLOWED_APPROVED_TEMPLATE_STATUSES:
+        return TemplateValidationResult(False, [f"unsupported approved template status {normalized_status!r}"])
+    record = registry.templates.get(normalized_id)
+    if record is None:
+        return TemplateValidationResult(False, [f"template {normalized_id!r} is not in registry"])
+    record.status = normalized_status
+    clean_note = _clean_text(note, limit=MAX_TEXT_LENGTH)
+    if clean_note and clean_note not in record.registry_notes:
+        record.registry_notes.append(clean_note)
+    return TemplateValidationResult(True, [])
+
+
+def approved_template_to_dict(record: ApprovedStructureTemplate) -> dict[str, object]:
+    """Serialize one approved template registry record."""
+    return {
+        "template": template_schema_to_dict(record.template),
+        "source_proposal_id": record.source_proposal_id,
+        "approved_by": record.approved_by,
+        "approved_at_tick": record.approved_at_tick,
+        "registered_by": record.registered_by,
+        "registered_at_tick": record.registered_at_tick,
+        "status": record.status,
+        "registry_notes": list(record.registry_notes),
+    }
+
+
+def approved_template_registry_to_dict(registry: ApprovedStructureTemplateRegistry) -> dict[str, object]:
+    """Serialize an approved template registry to plain data."""
+    return {
+        "templates": {
+            template_id: approved_template_to_dict(record)
+            for template_id, record in sorted(registry.templates.items())
+        }
+    }
+
+
+def approved_template_registry_from_payload(payload: dict[str, Any]) -> ApprovedStructureTemplateRegistry:
+    """Build an approved template registry from plain data."""
+    registry = ApprovedStructureTemplateRegistry()
+    raw_templates = payload.get("templates", {}) if isinstance(payload, dict) else {}
+    if not isinstance(raw_templates, dict):
+        return registry
+    for raw_template_id, raw_record in raw_templates.items():
+        if not isinstance(raw_record, dict):
+            continue
+        template_payload = raw_record.get("template", {})
+        if not isinstance(template_payload, dict):
+            continue
+        template = template_from_payload(template_payload)
+        status = _normalize_approved_template_status(raw_record.get("status", "active"))
+        record = ApprovedStructureTemplate(
+            template=template,
+            source_proposal_id=_normalize_id(raw_record.get("source_proposal_id", "")),
+            approved_by=_clean_text(raw_record.get("approved_by", ""), limit=MAX_LABEL_LENGTH),
+            approved_at_tick=_optional_non_negative_int(raw_record.get("approved_at_tick")) or 0,
+            registered_by=_clean_text(raw_record.get("registered_by", ""), limit=MAX_LABEL_LENGTH),
+            registered_at_tick=_optional_non_negative_int(raw_record.get("registered_at_tick")) or 0,
+            status=status,
+            registry_notes=_clean_text_list(raw_record.get("registry_notes", []), limit=8),
+        )
+        template_id = _normalize_id(raw_template_id) or template.template_id
+        if template_id:
+            registry.templates[template_id] = record
+    return registry
+
+
+def format_approved_template_registry(
+    registry: ApprovedStructureTemplateRegistry,
+    *,
+    limit: int = 10,
+) -> str:
+    """Render approved template registry for CLI inspection."""
+    records = sorted(
+        registry.templates.values(),
+        key=lambda record: (record.registered_at_tick, record.template.template_id),
+        reverse=True,
+    )[: max(1, limit)]
+    if not records:
+        return "Approved template registry: empty"
+    lines = ["Approved template registry:"]
+    for record in records:
+        lines.append(
+            f"  {record.template.template_id} v{record.template.version} "
+            f"status={record.status} kind={record.template.template_kind} "
+            f"proposal={record.source_proposal_id}"
+        )
     return "\n".join(lines)
 
 
@@ -1040,6 +1231,11 @@ def _status_after_approval_action(action: str) -> str:
 def _normalize_queue_status(raw_value: Any) -> str:
     status = _normalize_id(raw_value)
     return status if status in ALLOWED_TEMPLATE_APPROVAL_STATUSES else "pending"
+
+
+def _normalize_approved_template_status(raw_value: Any) -> str:
+    status = _normalize_id(raw_value)
+    return status if status in ALLOWED_APPROVED_TEMPLATE_STATUSES else "active"
 
 
 def _issues_from_payload(raw_issues: Any) -> list[TemplateValidationIssue]:

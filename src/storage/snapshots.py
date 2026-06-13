@@ -17,6 +17,8 @@ from src.world.emergent_presence import EmergentPresence
 from src.world.faction import Faction
 from src.world.frame import StructureTemplate
 from src.world.open_structure_template import (
+    approved_template_registry_from_payload,
+    approved_template_registry_to_dict,
     template_approval_queue_from_payload,
     template_approval_queue_to_dict,
 )
@@ -58,6 +60,7 @@ def save_world_state(world: WorldState, path: Path = DEFAULT_SNAPSHOT_PATH) -> N
         "descriptor_profiles": {key: asdict(value) for key, value in world.descriptor_profiles.items()},
         "ai_proposal_audits": {key: asdict(value) for key, value in world.ai_proposal_audits.items()},
         "template_approval_queue": template_approval_queue_to_dict(world.template_approval_queue),
+        "approved_template_registry": approved_template_registry_to_dict(world.approved_template_registry),
         "pressure_threads": {key: asdict(value) for key, value in world.pressure_threads.items()},
         "relations": {key: asdict(value) for key, value in world.relations.items()},
         "event_stream": {
@@ -116,6 +119,9 @@ def load_world_state(path: Path = DEFAULT_SNAPSHOT_PATH) -> WorldState:
     }
     world.template_approval_queue = template_approval_queue_from_payload(
         payload.get("template_approval_queue", {})
+    )
+    world.approved_template_registry = approved_template_registry_from_payload(
+        payload.get("approved_template_registry", {})
     )
     world.pressure_threads = {
         key: PressureThread(**value) for key, value in payload.get("pressure_threads", {}).items()

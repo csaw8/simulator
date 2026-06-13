@@ -62,8 +62,10 @@ from src.storage.db import DEFAULT_SQLITE_PATH, export_world_to_sqlite, format_s
 from src.world.builder import build_world
 from src.world.open_structure_template import (
     decide_template_approval_entry,
+    format_approved_template_registry,
     format_template_approval_decision,
     format_template_approval_queue,
+    register_approved_template_from_queue,
 )
 
 
@@ -113,6 +115,8 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  audit proposals [n]      Show recent AI proposal audit records\n"
             "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
             "  templates queue [n]      Show template approval queue\n"
+            "  templates registry [n]   Show approved template registry\n"
+            "  templates register <proposal_id> <reviewer> [note...]  Register an approved template proposal\n"
             "  templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]  Review a queued template proposal\n"
             "  debug llm         Test one live configured LLM request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
@@ -216,7 +220,7 @@ def _handle_targets(context: CommandContext, parts: list[str]) -> str:
 
 def _handle_templates(context: CommandContext, parts: list[str]) -> str:
     if len(parts) < 2:
-        return "Usage: templates queue [n] | templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
+        return _template_usage()
     subcommand = parts[1].lower()
     if subcommand == "queue":
         limit = 10
@@ -226,8 +230,34 @@ def _handle_templates(context: CommandContext, parts: list[str]) -> str:
             except ValueError:
                 return "Usage: templates queue [n]"
         return format_template_approval_queue(context.engine.world.template_approval_queue, limit=limit)
+    if subcommand == "registry":
+        limit = 10
+        if len(parts) >= 3:
+            try:
+                limit = max(1, int(parts[2]))
+            except ValueError:
+                return "Usage: templates registry [n]"
+        return format_approved_template_registry(context.engine.world.approved_template_registry, limit=limit)
+    if subcommand == "register":
+        if len(parts) < 4:
+            return "Usage: templates register <proposal_id> <reviewer> [note...]"
+        proposal_id = parts[2]
+        reviewer = parts[3]
+        note = " ".join(parts[4:])
+        result = register_approved_template_from_queue(
+            context.engine.world.approved_template_registry,
+            context.engine.world.template_approval_queue,
+            proposal_id,
+            registered_by=reviewer,
+            current_tick=context.engine.world.current_tick,
+            notes=[note] if note else [],
+        )
+        if not result.accepted:
+            return "Template registry registration rejected:\n  " + "\n  ".join(result.errors)
+        save_world_state(context.engine.world, context.snapshot_path)
+        return f"Template registered: {proposal_id}"
     if subcommand not in {"approve", "reject", "freeze", "withdraw"}:
-        return "Usage: templates queue [n] | templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
+        return _template_usage()
     if len(parts) < 4:
         return "Usage: templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
     proposal_id = parts[2]
@@ -244,6 +274,14 @@ def _handle_templates(context: CommandContext, parts: list[str]) -> str:
     if decision.accepted:
         save_world_state(context.engine.world, context.snapshot_path)
     return format_template_approval_decision(decision)
+
+
+def _template_usage() -> str:
+    return (
+        "Usage: templates queue [n] | templates registry [n] | "
+        "templates register <proposal_id> <reviewer> [note...] | "
+        "templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
+    )
 
 
 def _handle_propose(context: CommandContext, parts: list[str]) -> str:

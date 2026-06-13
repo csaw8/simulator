@@ -9,15 +9,22 @@ from src.interfaces.commands import CommandContext, handle_command
 from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 from src.world.open_structure_template import (
+    ApprovedStructureTemplateRegistry,
     MAX_TEMPLATE_FIELDS,
     TemplateApprovalQueue,
+    approved_template_registry_from_payload,
+    approved_template_registry_to_dict,
     build_template_proposal_audit_record,
     decide_template_approval_entry,
+    get_active_approved_template,
+    list_active_approved_templates,
     mark_template_proposal_validated,
     mark_template_proposal_validated_detailed,
     pending_template_approval_entries,
     proposal_from_payload,
     proposal_to_dict,
+    register_approved_template_from_queue,
+    set_approved_template_registry_status,
     submit_template_proposal_to_queue,
     template_approval_queue_from_payload,
     template_approval_queue_to_dict,
@@ -96,6 +103,21 @@ def _valid_proposal_payload():
         "reviewed_at_tick": None,
         "decision_notes": [],
     }
+
+
+def _approved_queue_with_proposal():
+    queue = TemplateApprovalQueue()
+    proposal = proposal_from_payload(_valid_proposal_payload())
+    submit_template_proposal_to_queue(queue, proposal, current_tick=50)
+    decide_template_approval_entry(
+        queue,
+        "proposal_salvage_pressure_marker",
+        action="approve",
+        reviewer="lead_designer",
+        current_tick=51,
+        reason="Approved for registry tests.",
+    )
+    return queue, proposal
 
 
 class OpenStructureTemplateTests(unittest.TestCase):
@@ -556,6 +578,158 @@ class OpenStructureTemplateTests(unittest.TestCase):
         self.assertIn("Template approval decision:", approve_output)
         self.assertIn("result: accepted", approve_output)
         self.assertEqual(world.template_approval_queue.entries["proposal_salvage_pressure_marker"].status, "approved")
+
+    def test_register_approved_template_from_queue_adds_active_registry_record(self) -> None:
+        queue, _proposal = _approved_queue_with_proposal()
+        registry = ApprovedStructureTemplateRegistry()
+
+        result = register_approved_template_from_queue(
+            registry,
+            queue,
+            "proposal_salvage_pressure_marker",
+            registered_by="registry_keeper",
+            current_tick=52,
+            notes=["Ready for V5-F instance generation."],
+        )
+
+        self.assertTrue(result.accepted, result.errors)
+        self.assertIn("salvage_pressure_marker", registry.templates)
+        record = registry.templates["salvage_pressure_marker"]
+        self.assertEqual(record.status, "active")
+        self.assertEqual(record.source_proposal_id, "proposal_salvage_pressure_marker")
+        self.assertEqual(record.approved_by, "lead_designer")
+        self.assertEqual(record.registered_by, "registry_keeper")
+        self.assertEqual(record.registered_at_tick, 52)
+        self.assertEqual(record.registry_notes, ["Ready for V5-F instance generation."])
+
+    def test_register_approved_template_rejects_unapproved_queue_entry(self) -> None:
+        queue = TemplateApprovalQueue()
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(queue, proposal, current_tick=53)
+        registry = ApprovedStructureTemplateRegistry()
+
+        result = register_approved_template_from_queue(
+            registry,
+            queue,
+            "proposal_salvage_pressure_marker",
+            registered_by="registry_keeper",
+        )
+
+        self.assertFalse(result.accepted)
+        self.assertIn("is not approved", result.errors[0])
+        self.assertEqual(registry.templates, {})
+
+    def test_register_approved_template_rejects_same_or_older_version(self) -> None:
+        queue, _proposal = _approved_queue_with_proposal()
+        registry = ApprovedStructureTemplateRegistry()
+        first = register_approved_template_from_queue(
+            registry,
+            queue,
+            "proposal_salvage_pressure_marker",
+            registered_by="registry_keeper",
+        )
+        second = register_approved_template_from_queue(
+            registry,
+            queue,
+            "proposal_salvage_pressure_marker",
+            registered_by="registry_keeper",
+        )
+
+        self.assertTrue(first.accepted)
+        self.assertFalse(second.accepted)
+        self.assertIn("is not newer", second.errors[0])
+
+    def test_approved_template_registry_active_query_and_status_updates(self) -> None:
+        queue, _proposal = _approved_queue_with_proposal()
+        registry = ApprovedStructureTemplateRegistry()
+        register_approved_template_from_queue(
+            registry,
+            queue,
+            "proposal_salvage_pressure_marker",
+            registered_by="registry_keeper",
+        )
+
+        active = get_active_approved_template(registry, "salvage_pressure_marker")
+        listed = list_active_approved_templates(registry)
+        frozen = set_approved_template_registry_status(
+            registry,
+            "salvage_pressure_marker",
+            "frozen",
+            note="Paused until instance validator lands.",
+        )
+
+        self.assertIsNotNone(active)
+        self.assertEqual([record.template.template_id for record in listed], ["salvage_pressure_marker"])
+        self.assertTrue(frozen.accepted)
+        self.assertIsNone(get_active_approved_template(registry, "salvage_pressure_marker"))
+        self.assertEqual(list_active_approved_templates(registry), [])
+        self.assertIn("Paused until instance validator lands.", registry.templates["salvage_pressure_marker"].registry_notes)
+
+    def test_approved_template_registry_round_trips_plain_data(self) -> None:
+        queue, _proposal = _approved_queue_with_proposal()
+        registry = ApprovedStructureTemplateRegistry()
+        register_approved_template_from_queue(
+            registry,
+            queue,
+            "proposal_salvage_pressure_marker",
+            registered_by="registry_keeper",
+            current_tick=54,
+        )
+
+        payload = approved_template_registry_to_dict(registry)
+        loaded = approved_template_registry_from_payload(payload)
+
+        self.assertIn("salvage_pressure_marker", loaded.templates)
+        record = loaded.templates["salvage_pressure_marker"]
+        self.assertEqual(record.template.template_id, "salvage_pressure_marker")
+        self.assertEqual(record.source_proposal_id, "proposal_salvage_pressure_marker")
+        self.assertEqual(record.registered_by, "registry_keeper")
+        self.assertEqual(record.registered_at_tick, 54)
+
+    def test_approved_template_registry_is_preserved_in_snapshots(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        queue, _proposal = _approved_queue_with_proposal()
+        world.template_approval_queue = queue
+        register_approved_template_from_queue(
+            world.approved_template_registry,
+            world.template_approval_queue,
+            "proposal_salvage_pressure_marker",
+            registered_by="registry_keeper",
+            current_tick=55,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "world.json"
+            save_world_state(world, path)
+            loaded = load_world_state(path)
+
+        self.assertIn("salvage_pressure_marker", loaded.approved_template_registry.templates)
+        record = loaded.approved_template_registry.templates["salvage_pressure_marker"]
+        self.assertEqual(record.status, "active")
+        self.assertEqual(record.source_proposal_id, "proposal_salvage_pressure_marker")
+
+    def test_cli_templates_register_and_registry(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        queue, _proposal = _approved_queue_with_proposal()
+        world.template_approval_queue = queue
+
+        with tempfile.TemporaryDirectory() as tmp:
+            context = CommandContext(
+                engine=WorldEngine(world, ai_config=DEFAULT_AI_CONFIG),
+                world_config=WorldConfig(**DEFAULT_WORLD_CONFIG),
+                ai_config=AIConfig(**DEFAULT_AI_CONFIG),
+                snapshot_path=Path(tmp) / "world.json",
+            )
+            register_output = handle_command(
+                context,
+                "templates register proposal_salvage_pressure_marker registry_keeper ready for V5-F",
+            )
+            registry_output = handle_command(context, "templates registry 5")
+
+        self.assertIn("Template registered: proposal_salvage_pressure_marker", register_output)
+        self.assertIn("Approved template registry:", registry_output)
+        self.assertIn("salvage_pressure_marker", registry_output)
+        self.assertIn("status=active", registry_output)
 
 
 if __name__ == "__main__":
