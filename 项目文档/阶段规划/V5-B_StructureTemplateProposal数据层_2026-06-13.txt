@@ -1,0 +1,116 @@
+V5-B StructureTemplateProposal 数据层
+
+日期：2026-06-13
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V5-B |
+| 名称 | StructureTemplateProposal 数据层 |
+| 核心目标 | 在 V5-A 半开放模板 schema 外增加 proposal 包装层 |
+| 本轮性质 | 数据对象 / 序列化 / 校验状态流转 |
+| 是否接 AI | 否 |
+| 是否写 WorldState | 否 |
+| 是否审批模板 | 否 |
+| 是否建立 registry | 否 |
+| 是否实例化模板 | 否 |
+
+本轮让“模板候选”具备可记录、可序列化、可校验、可标记 validated/rejected 的最小形态，为 V5-C/V5-D 的 validator/audit/approval queue 铺路。
+
+二、新增/扩展代码
+
+| 文件 | 改动 |
+|---|---|
+| `src/world/open_structure_template.py` | 新增 `StructureTemplateProposal`、proposal payload 转换、proposal 序列化、proposal 校验、validated/rejected 状态标记 |
+| `tests/test_open_structure_template.py` | 增加 proposal round-trip、metadata 校验、状态流转测试 |
+
+三、新增结构
+
+```python
+@dataclass(slots=True)
+class StructureTemplateProposal:
+    proposal_id: str
+    template: SemiOpenStructureTemplate
+    rationale: str
+    source: str
+    created_at_tick: int
+    status: str = "pending"
+    validation_errors: list[str] = field(default_factory=list)
+    reviewed_by: str | None = None
+    reviewed_at_tick: int | None = None
+    decision_notes: list[str] = field(default_factory=list)
+```
+
+四、Proposal 状态
+
+| 状态 | 含义 |
+|---|---|
+| `pending` | 候选已记录，但尚未完成校验确认 |
+| `validated` | schema 和 proposal metadata 均通过校验，但尚未 approved |
+| `rejected` | 校验失败或后续人工/规则拒绝 |
+| `withdrawn` | 候选撤回 |
+
+注意：`validated` 不等于 `approved`。V5-B 不建立 registry，也不允许模板实例化。
+
+五、新增函数
+
+| 函数 | 作用 |
+|---|---|
+| `proposal_from_payload(payload, current_tick=0)` | 从 JSON-like payload 构造 proposal |
+| `validate_template_proposal(proposal)` | 校验 proposal metadata 和内嵌 template schema |
+| `proposal_to_dict(proposal)` | proposal 序列化 |
+| `mark_template_proposal_validated(proposal)` | 校验并将 proposal 标记为 `validated` 或 `rejected` |
+
+六、校验边界
+
+| 校验项 | 规则 |
+|---|---|
+| proposal_id | 必须存在 |
+| rationale | 必须存在 |
+| source | 必须存在，缺失时回退 `manual` |
+| created_at_tick | 必须非负；缺失时使用调用方传入 `current_tick` |
+| status | 必须属于 `pending / validated / rejected / withdrawn` |
+| template | 复用 V5-A 的 `validate_template_schema` |
+| validation_errors | 可从现有 payload 读取，也可由 schema validation 自动生成 |
+
+七、明确不做
+
+| 不做项 | 原因 |
+|---|---|
+| 不写入 `WorldState` | V5-B 只定义 proposal 数据层；持久化/队列后续再做 |
+| 不接 `AIProposalAudit` | 模板 proposal 后续需要专用审批/注册状态，不应混同一次性 AI call audit |
+| 不接 AI prompt | V5-B 先保证结构可表达、可校验、可序列化 |
+| 不做 approval queue | V5-D 内容 |
+| 不做 approved registry | V5-E 内容 |
+| 不创建 TemplateInstance | V5-F 以后内容 |
+
+八、测试覆盖
+
+| 测试 | 覆盖 |
+|---|---|
+| `test_template_proposal_from_payload_round_trips` | payload -> proposal -> dict |
+| `test_template_proposal_uses_current_tick_when_tick_missing` | 缺失 tick 使用 current_tick |
+| `test_validate_template_proposal_requires_metadata` | proposal metadata 必填 |
+| `test_mark_template_proposal_validated_sets_validated_status` | 合法 proposal 标记 validated |
+| `test_mark_template_proposal_validated_sets_rejected_status` | 非法 proposal 标记 rejected 并记录 errors |
+
+九、后续任务
+
+| 批次 | 建议内容 |
+|---|---|
+| V5-C | 模板 proposal validator 独立结果对象、错误分类、audit 记录草案 |
+| V5-D | pending / approved / rejected / frozen 审批队列 |
+| V5-E | approved template registry，只有 approved template 可实例化 |
+| V5-F | TemplateInstance 最小数据层和实例 validator |
+
+十、结论
+
+V5-B 完成了“模板候选”的最小数据层：
+
+```text
+V5-A: 什么模板合法
+V5-B: 一个候选模板如何被记录、序列化、校验、标记状态
+```
+
+下一步应进入 V5-C，把 validator 结果和审计边界进一步拆清楚，为审批队列做准备。

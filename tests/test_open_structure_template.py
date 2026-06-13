@@ -2,8 +2,12 @@ import unittest
 
 from src.world.open_structure_template import (
     MAX_TEMPLATE_FIELDS,
+    mark_template_proposal_validated,
+    proposal_from_payload,
+    proposal_to_dict,
     template_from_payload,
     template_schema_to_dict,
+    validate_template_proposal,
     validate_template_payload,
     validate_template_schema,
 )
@@ -57,6 +61,21 @@ def _valid_template_payload():
         "safety_notes": ["No direct fixed object mutation."],
         "status": "pending",
         "version": 1,
+    }
+
+
+def _valid_proposal_payload():
+    return {
+        "proposal_id": "proposal_salvage_pressure_marker",
+        "template": _valid_template_payload(),
+        "rationale": "Tracks a bounded salvage-route pressure without adding new fixed object fields.",
+        "source": "unit_test",
+        "created_at_tick": 12,
+        "status": "pending",
+        "validation_errors": [],
+        "reviewed_by": None,
+        "reviewed_at_tick": None,
+        "decision_notes": [],
     }
 
 
@@ -184,6 +203,57 @@ class OpenStructureTemplateTests(unittest.TestCase):
         result = validate_template_schema(template)
 
         self.assertTrue(result.accepted)
+
+    def test_template_proposal_from_payload_round_trips(self) -> None:
+        proposal = proposal_from_payload(_valid_proposal_payload(), current_tick=99)
+        payload = proposal_to_dict(proposal)
+
+        self.assertEqual(proposal.proposal_id, "proposal_salvage_pressure_marker")
+        self.assertEqual(proposal.created_at_tick, 12)
+        self.assertEqual(proposal.status, "pending")
+        self.assertEqual(proposal.validation_errors, [])
+        self.assertEqual(payload["proposal_id"], "proposal_salvage_pressure_marker")
+        self.assertEqual(payload["template"]["template_id"], "salvage_pressure_marker")
+
+    def test_template_proposal_uses_current_tick_when_tick_missing(self) -> None:
+        payload = _valid_proposal_payload()
+        payload.pop("created_at_tick")
+
+        proposal = proposal_from_payload(payload, current_tick=44)
+
+        self.assertEqual(proposal.created_at_tick, 44)
+
+    def test_validate_template_proposal_requires_metadata(self) -> None:
+        payload = _valid_proposal_payload()
+        payload["proposal_id"] = ""
+        payload["rationale"] = ""
+        proposal = proposal_from_payload(payload)
+
+        result = validate_template_proposal(proposal)
+
+        self.assertFalse(result.accepted)
+        self.assertIn("proposal_id is required", result.errors)
+        self.assertIn("rationale is required", result.errors)
+
+    def test_mark_template_proposal_validated_sets_validated_status(self) -> None:
+        proposal = proposal_from_payload(_valid_proposal_payload())
+
+        result = mark_template_proposal_validated(proposal)
+
+        self.assertTrue(result.accepted)
+        self.assertEqual(proposal.status, "validated")
+        self.assertEqual(proposal.validation_errors, [])
+
+    def test_mark_template_proposal_validated_sets_rejected_status(self) -> None:
+        payload = _valid_proposal_payload()
+        payload["template"]["allowed_effects"] = ["direct_worldstate_write"]
+        proposal = proposal_from_payload(payload)
+
+        result = mark_template_proposal_validated(proposal)
+
+        self.assertFalse(result.accepted)
+        self.assertEqual(proposal.status, "rejected")
+        self.assertTrue(any("unsupported allowed_effect" in error for error in proposal.validation_errors))
 
 
 if __name__ == "__main__":

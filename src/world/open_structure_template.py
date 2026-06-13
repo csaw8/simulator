@@ -24,6 +24,7 @@ ALLOWED_TEMPLATE_FIELD_TYPES = {"text", "integer", "number", "boolean", "enum", 
 ALLOWED_TEMPLATE_EFFECTS = {"event", "relation", "pressure_thread", "narrative_observation", "descriptor_profile"}
 ALLOWED_TEMPLATE_STATUSES = {"active", "cooling", "archived"}
 ALLOWED_TEMPLATE_REGISTRY_STATUSES = {"pending", "approved", "rejected", "frozen", "retired"}
+ALLOWED_TEMPLATE_PROPOSAL_STATUSES = {"pending", "validated", "rejected", "withdrawn"}
 MAX_TEMPLATE_FIELDS = 8
 MAX_FIELD_ALLOWED_VALUES = 12
 MAX_DESCRIPTOR_TAGS_PER_TEMPLATE_CATEGORY = 8
@@ -81,6 +82,22 @@ class TemplateValidationResult:
 
     accepted: bool
     errors: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class StructureTemplateProposal:
+    """Auditable candidate wrapper around a semi-open template schema."""
+
+    proposal_id: str
+    template: SemiOpenStructureTemplate
+    rationale: str
+    source: str
+    created_at_tick: int
+    status: str = "pending"
+    validation_errors: list[str] = field(default_factory=list)
+    reviewed_by: str | None = None
+    reviewed_at_tick: int | None = None
+    decision_notes: list[str] = field(default_factory=list)
 
 
 def template_from_payload(payload: dict[str, Any]) -> SemiOpenStructureTemplate:
@@ -149,6 +166,77 @@ def validate_template_payload(payload: dict[str, Any]) -> TemplateValidationResu
     if not isinstance(payload, dict):
         return TemplateValidationResult(accepted=False, errors=["template payload must be an object"])
     return validate_template_schema(template_from_payload(payload))
+
+
+def proposal_from_payload(payload: dict[str, Any], *, current_tick: int = 0) -> StructureTemplateProposal:
+    """Build a structure template proposal from plain JSON-like data."""
+    template_payload = payload.get("template", {})
+    if not isinstance(template_payload, dict):
+        template_payload = {}
+    template = template_from_payload(template_payload)
+    validation = validate_template_schema(template)
+    explicit_errors = _clean_text_list(payload.get("validation_errors", []), limit=12)
+    validation_errors = explicit_errors or list(validation.errors)
+    status = _normalize_id(payload.get("status", "pending"))
+    if status not in ALLOWED_TEMPLATE_PROPOSAL_STATUSES:
+        status = "pending"
+    if validation_errors and status == "validated":
+        status = "rejected"
+    created_at_tick = _optional_non_negative_int(payload.get("created_at_tick"))
+    return StructureTemplateProposal(
+        proposal_id=_normalize_id(payload.get("proposal_id", "")),
+        template=template,
+        rationale=_clean_text(payload.get("rationale", ""), limit=MAX_TEXT_LENGTH),
+        source=_clean_text(payload.get("source", "manual"), limit=MAX_LABEL_LENGTH) or "manual",
+        created_at_tick=current_tick if created_at_tick is None else created_at_tick,
+        status=status,
+        validation_errors=validation_errors,
+        reviewed_by=_optional_text(payload.get("reviewed_by"), limit=MAX_LABEL_LENGTH),
+        reviewed_at_tick=_optional_non_negative_int(payload.get("reviewed_at_tick")),
+        decision_notes=_clean_text_list(payload.get("decision_notes", []), limit=8),
+    )
+
+
+def validate_template_proposal(proposal: StructureTemplateProposal) -> TemplateValidationResult:
+    """Validate a structure template proposal and its embedded schema."""
+    errors: list[str] = []
+    if not proposal.proposal_id:
+        errors.append("proposal_id is required")
+    if not proposal.rationale:
+        errors.append("rationale is required")
+    if not proposal.source:
+        errors.append("source is required")
+    if proposal.created_at_tick < 0:
+        errors.append("created_at_tick must be non-negative")
+    if proposal.status not in ALLOWED_TEMPLATE_PROPOSAL_STATUSES:
+        errors.append(f"unsupported proposal status {proposal.status!r}")
+    schema_result = validate_template_schema(proposal.template)
+    errors.extend(schema_result.errors)
+    return TemplateValidationResult(accepted=not errors, errors=errors)
+
+
+def proposal_to_dict(proposal: StructureTemplateProposal) -> dict[str, object]:
+    """Serialize a structure template proposal to plain data."""
+    return {
+        "proposal_id": proposal.proposal_id,
+        "template": template_schema_to_dict(proposal.template),
+        "rationale": proposal.rationale,
+        "source": proposal.source,
+        "created_at_tick": proposal.created_at_tick,
+        "status": proposal.status,
+        "validation_errors": list(proposal.validation_errors),
+        "reviewed_by": proposal.reviewed_by,
+        "reviewed_at_tick": proposal.reviewed_at_tick,
+        "decision_notes": list(proposal.decision_notes),
+    }
+
+
+def mark_template_proposal_validated(proposal: StructureTemplateProposal) -> TemplateValidationResult:
+    """Validate and update proposal status without approving it."""
+    result = validate_template_proposal(proposal)
+    proposal.validation_errors = list(result.errors)
+    proposal.status = "validated" if result.accepted else "rejected"
+    return result
 
 
 def template_schema_to_dict(template: SemiOpenStructureTemplate) -> dict[str, object]:
@@ -334,6 +422,23 @@ def _optional_positive_int(raw_value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return value if value > 0 else None
+
+
+def _optional_non_negative_int(raw_value: Any) -> int | None:
+    if raw_value in {None, ""}:
+        return None
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+def _optional_text(raw_value: Any, *, limit: int) -> str | None:
+    if raw_value in {None, ""}:
+        return None
+    text = _clean_text(raw_value, limit=limit)
+    return text or None
 
 
 def _normalize_id(raw_value: Any) -> str:
