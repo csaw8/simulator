@@ -1,0 +1,180 @@
+V5-A 半开放结构模板最小 schema
+
+日期：2026-06-13
+
+一、目标
+
+| 项 | 内容 |
+|---|---|
+| 批次 | V5-A |
+| 名称 | 半开放结构模板最小 schema |
+| 核心目标 | 定义 AI 未来可以提议的新结构模板边界 |
+| 本轮性质 | schema / validator 先行 |
+| 是否接 AI | 否 |
+| 是否写 WorldState | 否 |
+| 是否实例化模板 | 否 |
+| 是否审批 registry | 否，V5-B/V5-C/V5-D 后续处理 |
+
+本轮只建立“什么模板是合法的”的可测试边界，不让 AI 直接新增 Python dataclass、不让 AI 直接写 `WorldState` 新字段、不允许自由字段无限扩张。
+
+二、新增代码
+
+| 文件 | 作用 |
+|---|---|
+| `src/world/open_structure_template.py` | 半开放结构模板 schema、payload 转换、validator、序列化 |
+| `tests/test_open_structure_template.py` | V5-A schema/validator 测试 |
+
+三、核心结构
+
+| 结构 | 用途 |
+|---|---|
+| `TemplateFieldSpec` | 模板字段定义 |
+| `TemplateLifecycleSpec` | 模板实例生命周期边界 |
+| `SemiOpenStructureTemplate` | 半开放结构模板数据对象 |
+| `TemplateValidationResult` | validator 结果 |
+
+四、允许的模板范围
+
+| 类型 | 允许值 |
+|---|---|
+| `template_kind` | `social_formation / place_condition / hazard_pattern / resource_flow / signal_pattern` |
+| `field_type` | `text / integer / number / boolean / enum / ref / ref_list / tag_list` |
+| `allowed_effects` | `event / relation / pressure_thread / narrative_observation / descriptor_profile` |
+| `lifecycle status` | `active / cooling / archived` |
+| `registry status` | `pending / approved / rejected / frozen / retired` |
+| `descriptor_profile_type` | 复用 V4-F 的 descriptor profile types |
+
+五、硬边界
+
+| 边界 | 当前规则 |
+|---|---|
+| 字段数量 | 最多 8 个字段 |
+| enum 候选值 | 最多 12 个 |
+| descriptor 标签 | 每个 category 最多 8 个 |
+| style constraints | 最多 4 个 |
+| effect channel | 最多 5 个，且必须在 allowlist 内 |
+| text 字段 | 必须声明 `max_length`，且不超过 240 |
+| ref/ref_list 字段 | 必须声明 `ref_types` |
+| enum 字段 | 必须声明 `allowed_values` |
+| descriptor tag | 必须通过 `DescriptorLexicon` approved pool 校验 |
+| style constraint | 必须是已注册 `WorldStyleProfile` |
+
+六、Validator 覆盖
+
+| 校验 | 说明 |
+|---|---|
+| identity | `template_id / title / template_kind / descriptor_profile_type / status / version` |
+| fields | 字段存在、数量、重复 ID、类型、text/enum/ref 必要约束 |
+| lifecycle | 初始状态、允许状态、终止状态必须一致 |
+| effects | 只能使用固定影响通道 |
+| descriptor constraints | category 合法、tag 在对应 style/profile/category 下 approved |
+| style constraints | style 必须存在于 `DEFAULT_WORLD_STYLE_PROFILES` |
+
+七、示例合法模板
+
+```json
+{
+  "template_id": "salvage_pressure_marker",
+  "title": "Salvage Pressure Marker",
+  "template_kind": "resource_flow",
+  "descriptor_profile_type": "dynamic_structure",
+  "fields": [
+    {
+      "field_id": "public_name",
+      "label": "Public name",
+      "field_type": "text",
+      "required": true,
+      "max_length": 80
+    },
+    {
+      "field_id": "pressure_level",
+      "label": "Pressure level",
+      "field_type": "enum",
+      "required": true,
+      "allowed_values": ["low", "medium", "high"]
+    },
+    {
+      "field_id": "linked_route",
+      "label": "Linked route",
+      "field_type": "ref",
+      "ref_types": ["supply_line", "region_node"]
+    }
+  ],
+  "lifecycle": {
+    "initial_status": "active",
+    "allowed_statuses": ["active", "cooling", "archived"],
+    "terminal_statuses": ["archived"],
+    "max_active_ticks": 40
+  },
+  "allowed_effects": ["event", "relation", "pressure_thread", "descriptor_profile"],
+  "descriptor_constraints": {
+    "behavior": ["reactive"],
+    "social_read": ["rumored"],
+    "ecological": ["habitat_disruption"]
+  },
+  "style_constraints": ["realistic_future_anomaly"],
+  "safety_notes": ["No direct fixed object mutation."],
+  "status": "pending",
+  "version": 1
+}
+```
+
+八、明确不做
+
+| 不做项 | 原因 |
+|---|---|
+| 不建 registry | V5-B/V5-C 后续做，避免 schema 与持久化一起膨胀 |
+| 不接 AI proposal | 当前先让 schema 边界可测试，AI prompt 后置 |
+| 不审批模板 | approval queue 是后续批次 |
+| 不实例化模板 | TemplateInstance 是后续批次 |
+| 不写 WorldState | 保持 V5-A 为零状态变更 |
+| 不生成 Event/Relation/PressureThread | 影响通道只定义 allowlist，不实际执行 |
+| 不让 AI 新增 descriptor tag | 仍必须使用 V4-F approved pool |
+
+九、与第四阶段的衔接
+
+| 第四阶段产物 | V5-A 使用方式 |
+|---|---|
+| `WorldStyleProfile` | `style_constraints` 必须引用已注册 profile |
+| `DescriptorLexicon` | `descriptor_constraints` 必须来自 approved pool |
+| `DescriptorProfile` | 模板声明 `descriptor_profile_type`，但不写入实例 |
+| AI descriptor flow | 保持 proposal / validation / audit / apply 思路，V5-A 暂不接 AI |
+
+十、测试
+
+| 测试 | 覆盖 |
+|---|---|
+| `test_valid_template_payload_is_accepted` | 合法模板通过 |
+| `test_template_from_payload_normalizes_and_serializes` | payload -> schema -> dict |
+| `test_rejects_unknown_template_kind` | 禁止自由 template kind |
+| `test_rejects_too_many_fields` | 字段数量上限 |
+| `test_rejects_text_field_without_max_length` | text 字段必须有 max_length |
+| `test_rejects_enum_without_allowed_values` | enum 必须有 allowed_values |
+| `test_rejects_unapproved_effect_channel` | 禁止 direct_worldstate_write |
+| `test_rejects_unapproved_descriptor_tag` | 禁止非 approved descriptor tag |
+| `test_descriptor_constraints_are_style_scoped` | 第二 profile descriptor 可独立通过 |
+| `test_rejects_descriptor_tag_from_wrong_style` | 防止跨 profile tag 串用 |
+| `test_rejects_unknown_style_constraint` | 禁止未注册 style |
+| `test_rejects_bad_lifecycle` | lifecycle 一致性 |
+
+十一、后续任务
+
+| 批次 | 建议内容 |
+|---|---|
+| V5-B | `StructureTemplateProposal` 数据层与 snapshot 序列化草案 |
+| V5-C | 模板 proposal validator 和 audit 结果对象 |
+| V5-D | pending / approved / rejected / frozen 审批队列 |
+| V5-E | approved template registry，只有 approved template 可实例化 |
+
+十二、结论
+
+V5-A 建立了半开放结构生成的最小硬边界：
+
+```text
+AI 未来可以提议 JSON 模板
+模板字段数量、类型、生命周期、影响通道、style、descriptor 都受控
+非法模板会被 validator 拒绝
+本轮不产生状态变更
+```
+
+这为第五阶段后续的 proposal / registry / approval / instance 打下了可测试基础。
