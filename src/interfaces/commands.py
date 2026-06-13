@@ -60,6 +60,11 @@ from src.narrative.visibility import PLAYER_VIEW, TRUTH_VIEW, is_player_view, no
 from src.storage.snapshots import save_world_state
 from src.storage.db import DEFAULT_SQLITE_PATH, export_world_to_sqlite, format_sqlite_stats
 from src.world.builder import build_world
+from src.world.open_structure_template import (
+    decide_template_approval_entry,
+    format_template_approval_decision,
+    format_template_approval_queue,
+)
 
 
 @dataclass(slots=True)
@@ -107,6 +112,8 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  targets dynamic [n]     Show high-signal targets for dynamic proposal sampling\n"
             "  audit proposals [n]      Show recent AI proposal audit records\n"
             "  audit proposals summary [n]  Show aggregate proposal quality metrics\n"
+            "  templates queue [n]      Show template approval queue\n"
+            "  templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]  Review a queued template proposal\n"
             "  debug llm         Test one live configured LLM request on the top wake candidate\n"
             "  reset             Rebuild the world from default config\n"
             "  save              Save the current world snapshot\n"
@@ -135,6 +142,9 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
 
     if action == "targets":
         return _handle_targets(context, parts)
+
+    if action == "templates":
+        return _handle_templates(context, parts)
 
     if action == "propose":
         return _handle_propose(context, parts)
@@ -202,6 +212,38 @@ def _handle_targets(context: CommandContext, parts: list[str]) -> str:
         except ValueError:
             return "Usage: targets dynamic [n]"
     return format_dynamic_structure_targets(context.engine.world, limit=limit)
+
+
+def _handle_templates(context: CommandContext, parts: list[str]) -> str:
+    if len(parts) < 2:
+        return "Usage: templates queue [n] | templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
+    subcommand = parts[1].lower()
+    if subcommand == "queue":
+        limit = 10
+        if len(parts) >= 3:
+            try:
+                limit = max(1, int(parts[2]))
+            except ValueError:
+                return "Usage: templates queue [n]"
+        return format_template_approval_queue(context.engine.world.template_approval_queue, limit=limit)
+    if subcommand not in {"approve", "reject", "freeze", "withdraw"}:
+        return "Usage: templates queue [n] | templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
+    if len(parts) < 4:
+        return "Usage: templates approve|reject|freeze|withdraw <proposal_id> <reviewer> [reason...]"
+    proposal_id = parts[2]
+    reviewer = parts[3]
+    reason = " ".join(parts[4:])
+    decision = decide_template_approval_entry(
+        context.engine.world.template_approval_queue,
+        proposal_id,
+        action=subcommand,
+        reviewer=reviewer,
+        current_tick=context.engine.world.current_tick,
+        reason=reason,
+    )
+    if decision.accepted:
+        save_world_state(context.engine.world, context.snapshot_path)
+    return format_template_approval_decision(decision)
 
 
 def _handle_propose(context: CommandContext, parts: list[str]) -> str:

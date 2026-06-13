@@ -25,6 +25,8 @@ ALLOWED_TEMPLATE_EFFECTS = {"event", "relation", "pressure_thread", "narrative_o
 ALLOWED_TEMPLATE_STATUSES = {"active", "cooling", "archived"}
 ALLOWED_TEMPLATE_REGISTRY_STATUSES = {"pending", "approved", "rejected", "frozen", "retired"}
 ALLOWED_TEMPLATE_PROPOSAL_STATUSES = {"pending", "validated", "rejected", "withdrawn"}
+ALLOWED_TEMPLATE_APPROVAL_STATUSES = {"pending", "approved", "rejected", "frozen", "withdrawn"}
+ALLOWED_TEMPLATE_APPROVAL_ACTIONS = {"approve", "reject", "freeze", "withdraw"}
 ALLOWED_TEMPLATE_VALIDATION_ISSUE_CATEGORIES = {
     "metadata",
     "schema",
@@ -124,6 +126,39 @@ class TemplateProposalAuditRecord:
     accepted: bool
     issue_counts: dict[str, int]
     report: TemplateProposalValidationReport
+
+
+@dataclass(slots=True)
+class TemplateApprovalDecision:
+    """One auditable reviewer decision for a template proposal queue entry."""
+
+    decision_id: str
+    proposal_id: str
+    action: str
+    reviewer: str
+    tick: int
+    accepted: bool
+    reason: str = ""
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TemplateApprovalQueueEntry:
+    """One proposal entry in the bounded template approval queue."""
+
+    proposal: StructureTemplateProposal
+    status: str = "pending"
+    submitted_at_tick: int = 0
+    validation_report: TemplateProposalValidationReport | None = None
+    validation_audit: TemplateProposalAuditRecord | None = None
+    decisions: list[TemplateApprovalDecision] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TemplateApprovalQueue:
+    """In-memory approval queue for validated template proposals."""
+
+    entries: dict[str, TemplateApprovalQueueEntry] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -338,6 +373,213 @@ def template_proposal_audit_to_dict(audit: TemplateProposalAuditRecord) -> dict[
         "issue_counts": dict(audit.issue_counts),
         "report": template_proposal_report_to_dict(audit.report),
     }
+
+
+def submit_template_proposal_to_queue(
+    queue: TemplateApprovalQueue,
+    proposal: StructureTemplateProposal,
+    *,
+    current_tick: int = 0,
+) -> TemplateApprovalQueueEntry:
+    """Validate and submit a template proposal into the approval queue."""
+    report = mark_template_proposal_validated_detailed(proposal)
+    audit = build_template_proposal_audit_record(proposal, report, current_tick=current_tick)
+    status = "pending" if report.accepted else "rejected"
+    entry = TemplateApprovalQueueEntry(
+        proposal=proposal,
+        status=status,
+        submitted_at_tick=max(0, current_tick),
+        validation_report=report,
+        validation_audit=audit,
+    )
+    queue.entries[proposal.proposal_id] = entry
+    return entry
+
+
+def decide_template_approval_entry(
+    queue: TemplateApprovalQueue,
+    proposal_id: str,
+    *,
+    action: str,
+    reviewer: str,
+    current_tick: int = 0,
+    reason: str = "",
+    notes: list[str] | None = None,
+) -> TemplateApprovalDecision:
+    """Apply one approval decision to a queued proposal without creating registry entries."""
+    normalized_id = _normalize_id(proposal_id)
+    normalized_action = _normalize_id(action)
+    clean_reviewer = _clean_text(reviewer, limit=MAX_LABEL_LENGTH)
+    clean_reason = _clean_text(reason, limit=MAX_TEXT_LENGTH)
+    clean_notes = _clean_text_list(notes or [], limit=8)
+    accepted = True
+    rejection_reason = clean_reason
+
+    if normalized_action not in ALLOWED_TEMPLATE_APPROVAL_ACTIONS:
+        accepted = False
+        rejection_reason = rejection_reason or f"unsupported approval action {normalized_action!r}"
+    entry = queue.entries.get(normalized_id)
+    if entry is None:
+        accepted = False
+        rejection_reason = rejection_reason or f"proposal {normalized_id!r} is not in approval queue"
+    elif not clean_reviewer:
+        accepted = False
+        rejection_reason = rejection_reason or "reviewer is required"
+    elif (
+        normalized_action in {"approve", "freeze"}
+        and entry.validation_report is not None
+        and not entry.validation_report.accepted
+    ):
+        accepted = False
+        rejection_reason = rejection_reason or "cannot approve or freeze invalid proposal"
+    elif entry.status in {"approved", "rejected", "withdrawn"}:
+        accepted = False
+        rejection_reason = rejection_reason or f"proposal is already {entry.status}"
+    elif normalized_action == "approve" and entry.status != "pending":
+        accepted = False
+        rejection_reason = rejection_reason or "only pending proposals can be approved"
+    elif normalized_action == "freeze" and entry.status not in {"pending", "approved"}:
+        accepted = False
+        rejection_reason = rejection_reason or "only pending or approved proposals can be frozen"
+    elif normalized_action in {"reject", "withdraw"} and entry.status not in {"pending", "frozen"}:
+        accepted = False
+        rejection_reason = rejection_reason or "only pending or frozen proposals can be rejected or withdrawn"
+
+    decision = TemplateApprovalDecision(
+        decision_id=f"template_decision_{normalized_id or 'unknown'}_{len(entry.decisions) + 1 if entry else 1:03d}",
+        proposal_id=normalized_id,
+        action=normalized_action,
+        reviewer=clean_reviewer,
+        tick=max(0, current_tick),
+        accepted=accepted,
+        reason=rejection_reason,
+        notes=clean_notes,
+    )
+    if entry is None:
+        return decision
+    entry.decisions.append(decision)
+    if accepted:
+        entry.status = _status_after_approval_action(normalized_action)
+        entry.proposal.reviewed_by = clean_reviewer
+        entry.proposal.reviewed_at_tick = max(0, current_tick)
+        if clean_reason:
+            entry.proposal.decision_notes.append(clean_reason)
+        entry.proposal.decision_notes.extend(note for note in clean_notes if note not in entry.proposal.decision_notes)
+    return decision
+
+
+def pending_template_approval_entries(queue: TemplateApprovalQueue) -> list[TemplateApprovalQueueEntry]:
+    """Return queued proposals that still await approval."""
+    return [
+        entry
+        for entry in sorted(queue.entries.values(), key=lambda item: (item.submitted_at_tick, item.proposal.proposal_id))
+        if entry.status == "pending"
+    ]
+
+
+def template_approval_decision_to_dict(decision: TemplateApprovalDecision) -> dict[str, object]:
+    """Serialize one template approval decision."""
+    return {
+        "decision_id": decision.decision_id,
+        "proposal_id": decision.proposal_id,
+        "action": decision.action,
+        "reviewer": decision.reviewer,
+        "tick": decision.tick,
+        "accepted": decision.accepted,
+        "reason": decision.reason,
+        "notes": list(decision.notes),
+    }
+
+
+def template_approval_entry_to_dict(entry: TemplateApprovalQueueEntry) -> dict[str, object]:
+    """Serialize one approval queue entry."""
+    return {
+        "proposal": proposal_to_dict(entry.proposal),
+        "status": entry.status,
+        "submitted_at_tick": entry.submitted_at_tick,
+        "validation_report": (
+            template_proposal_report_to_dict(entry.validation_report)
+            if entry.validation_report is not None
+            else None
+        ),
+        "validation_audit": (
+            template_proposal_audit_to_dict(entry.validation_audit)
+            if entry.validation_audit is not None
+            else None
+        ),
+        "decisions": [template_approval_decision_to_dict(decision) for decision in entry.decisions],
+    }
+
+
+def template_approval_queue_to_dict(queue: TemplateApprovalQueue) -> dict[str, object]:
+    """Serialize an approval queue to plain data."""
+    return {
+        "entries": {
+            proposal_id: template_approval_entry_to_dict(entry)
+            for proposal_id, entry in sorted(queue.entries.items())
+        }
+    }
+
+
+def template_approval_queue_from_payload(payload: dict[str, Any]) -> TemplateApprovalQueue:
+    """Build an approval queue from plain data."""
+    queue = TemplateApprovalQueue()
+    raw_entries = payload.get("entries", {}) if isinstance(payload, dict) else {}
+    if not isinstance(raw_entries, dict):
+        return queue
+    for raw_proposal_id, raw_entry in raw_entries.items():
+        if not isinstance(raw_entry, dict):
+            continue
+        proposal_payload = raw_entry.get("proposal", {})
+        if not isinstance(proposal_payload, dict):
+            continue
+        proposal = proposal_from_payload(proposal_payload)
+        entry = TemplateApprovalQueueEntry(
+            proposal=proposal,
+            status=_normalize_queue_status(raw_entry.get("status", "pending")),
+            submitted_at_tick=_optional_non_negative_int(raw_entry.get("submitted_at_tick")) or 0,
+            validation_report=_report_from_payload(raw_entry.get("validation_report")),
+            validation_audit=_audit_from_payload(raw_entry.get("validation_audit")),
+            decisions=_decisions_from_payload(raw_entry.get("decisions", [])),
+        )
+        proposal_id = _normalize_id(raw_proposal_id) or proposal.proposal_id
+        if proposal_id:
+            queue.entries[proposal_id] = entry
+    return queue
+
+
+def format_template_approval_queue(queue: TemplateApprovalQueue, *, limit: int = 10) -> str:
+    """Render a compact approval queue block for CLI inspection."""
+    entries = sorted(
+        queue.entries.values(),
+        key=lambda entry: (entry.submitted_at_tick, entry.proposal.proposal_id),
+        reverse=True,
+    )[: max(1, limit)]
+    if not entries:
+        return "Template approval queue: empty"
+    lines = ["Template approval queue:"]
+    for entry in entries:
+        issue_count = len(entry.validation_report.issues) if entry.validation_report is not None else 0
+        lines.append(
+            f"  {entry.proposal.proposal_id} status={entry.status} "
+            f"template={entry.proposal.template.template_id} issues={issue_count}"
+        )
+    return "\n".join(lines)
+
+
+def format_template_approval_decision(decision: TemplateApprovalDecision) -> str:
+    """Render one approval decision for CLI output."""
+    status = "accepted" if decision.accepted else "rejected"
+    lines = [
+        "Template approval decision:",
+        f"  decision_id: {decision.decision_id}",
+        f"  proposal_id: {decision.proposal_id}",
+        f"  action: {decision.action}",
+        f"  result: {status}",
+    ]
+    if decision.reason:
+        lines.append(f"  reason: {decision.reason}")
+    return "\n".join(lines)
 
 
 def mark_template_proposal_validated(proposal: StructureTemplateProposal) -> TemplateValidationResult:
@@ -781,6 +1023,103 @@ def _count_issues_by_category(issues: list[TemplateValidationIssue]) -> dict[str
         category = issue.category if issue.category in counts else "schema"
         counts[category] += 1
     return {category: count for category, count in counts.items() if count}
+
+
+def _status_after_approval_action(action: str) -> str:
+    if action == "approve":
+        return "approved"
+    if action == "reject":
+        return "rejected"
+    if action == "freeze":
+        return "frozen"
+    if action == "withdraw":
+        return "withdrawn"
+    return "pending"
+
+
+def _normalize_queue_status(raw_value: Any) -> str:
+    status = _normalize_id(raw_value)
+    return status if status in ALLOWED_TEMPLATE_APPROVAL_STATUSES else "pending"
+
+
+def _issues_from_payload(raw_issues: Any) -> list[TemplateValidationIssue]:
+    if not isinstance(raw_issues, list):
+        return []
+    issues: list[TemplateValidationIssue] = []
+    for raw_issue in raw_issues:
+        if not isinstance(raw_issue, dict):
+            continue
+        _add_issue(
+            issues,
+            _normalize_id(raw_issue.get("category", "schema")),
+            _clean_text(raw_issue.get("message", ""), limit=MAX_TEXT_LENGTH),
+            path=_clean_text(raw_issue.get("path", ""), limit=MAX_TEXT_LENGTH),
+        )
+    return issues
+
+
+def _report_from_payload(raw_report: Any) -> TemplateProposalValidationReport | None:
+    if not isinstance(raw_report, dict):
+        return None
+    issues = _issues_from_payload(raw_report.get("issues", []))
+    status_after_validation = _normalize_id(raw_report.get("status_after_validation", "pending"))
+    if status_after_validation not in ALLOWED_TEMPLATE_PROPOSAL_STATUSES:
+        status_after_validation = "pending"
+    return TemplateProposalValidationReport(
+        proposal_id=_normalize_id(raw_report.get("proposal_id", "")),
+        accepted=bool(raw_report.get("accepted", False)),
+        issues=issues,
+        status_after_validation=status_after_validation,
+    )
+
+
+def _audit_from_payload(raw_audit: Any) -> TemplateProposalAuditRecord | None:
+    if not isinstance(raw_audit, dict):
+        return None
+    report = _report_from_payload(raw_audit.get("report"))
+    if report is None:
+        return None
+    issue_counts = {}
+    raw_counts = raw_audit.get("issue_counts", {})
+    if isinstance(raw_counts, dict):
+        for raw_category, raw_count in raw_counts.items():
+            category = _normalize_id(raw_category)
+            if category in ALLOWED_TEMPLATE_VALIDATION_ISSUE_CATEGORIES:
+                issue_counts[category] = _optional_non_negative_int(raw_count) or 0
+    return TemplateProposalAuditRecord(
+        audit_id=_normalize_id(raw_audit.get("audit_id", "")),
+        proposal_id=_normalize_id(raw_audit.get("proposal_id", "")),
+        tick=_optional_non_negative_int(raw_audit.get("tick")) or 0,
+        source=_clean_text(raw_audit.get("source", ""), limit=MAX_LABEL_LENGTH),
+        accepted=bool(raw_audit.get("accepted", False)),
+        issue_counts=issue_counts,
+        report=report,
+    )
+
+
+def _decisions_from_payload(raw_decisions: Any) -> list[TemplateApprovalDecision]:
+    if not isinstance(raw_decisions, list):
+        return []
+    decisions: list[TemplateApprovalDecision] = []
+    for raw_decision in raw_decisions:
+        if not isinstance(raw_decision, dict):
+            continue
+        action = _normalize_id(raw_decision.get("action", ""))
+        if action not in ALLOWED_TEMPLATE_APPROVAL_ACTIONS:
+            action = "reject"
+        decisions.append(
+            TemplateApprovalDecision(
+                decision_id=_normalize_id(raw_decision.get("decision_id", "")),
+                proposal_id=_normalize_id(raw_decision.get("proposal_id", "")),
+                action=action,
+                reviewer=_clean_text(raw_decision.get("reviewer", ""), limit=MAX_LABEL_LENGTH),
+                tick=_optional_non_negative_int(raw_decision.get("tick")) or 0,
+                accepted=bool(raw_decision.get("accepted", False)),
+                reason=_clean_text(raw_decision.get("reason", ""), limit=MAX_TEXT_LENGTH),
+                notes=_clean_text_list(raw_decision.get("notes", []), limit=8),
+            )
+        )
+    return decisions
 
 
 def _primary_style(template: SemiOpenStructureTemplate) -> str:

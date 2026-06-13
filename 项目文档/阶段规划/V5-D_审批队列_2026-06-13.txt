@@ -1,0 +1,120 @@
+Terrarium Project V5-D：模板审批队列
+
+日期：2026-06-13
+
+一、批次定位
+
+| 项 | 内容 |
+|---|---|
+| 所属阶段 | 第五阶段：半开放结构生成与 AI 模板提案阶段 |
+| 批次 | V5-D |
+| 核心目标 | 让通过 validator 的 StructureTemplateProposal 进入可查看、可审批、可拒绝、可冻结、可撤回的审批队列 |
+| 关键边界 | 审批队列不等于 approved template registry；本批次不允许模板实例化 |
+
+二、本批次实现内容
+
+| 类型 | 内容 |
+|---|---|
+| 新增对象 | `TemplateApprovalDecision` |
+| 新增对象 | `TemplateApprovalQueueEntry` |
+| 新增对象 | `TemplateApprovalQueue` |
+| 新增函数 | `submit_template_proposal_to_queue(...)` |
+| 新增函数 | `decide_template_approval_entry(...)` |
+| 新增函数 | `pending_template_approval_entries(...)` |
+| 新增序列化 | `template_approval_decision_to_dict(...)` |
+| 新增序列化 | `template_approval_entry_to_dict(...)` |
+| 新增序列化 | `template_approval_queue_to_dict(...)` |
+| 新增反序列化 | `template_approval_queue_from_payload(...)` |
+| 新增 CLI 格式化 | `format_template_approval_queue(...)` |
+| 新增 CLI 格式化 | `format_template_approval_decision(...)` |
+
+三、队列状态
+
+| 状态 | 含义 |
+|---|---|
+| `pending` | proposal 已通过 V5-C validator，等待审批 |
+| `approved` | proposal 已被审批通过，但尚未进入 registry |
+| `rejected` | proposal 被 validator 或 reviewer 拒绝 |
+| `frozen` | proposal 暂停处理，保留未来重新判断空间 |
+| `withdrawn` | proposal 从审批流程中撤回 |
+
+四、审批动作
+
+| 动作 | 允许来源状态 | 结果状态 |
+|---|---|---|
+| `approve` | `pending` | `approved` |
+| `reject` | `pending` / `frozen` | `rejected` |
+| `freeze` | `pending` / `approved` | `frozen` |
+| `withdraw` | `pending` / `frozen` | `withdrawn` |
+
+五、校验与审计关系
+
+| 环节 | 说明 |
+|---|---|
+| 入队前 | `submit_template_proposal_to_queue(...)` 会先调用 V5-C detailed validator |
+| 合法 proposal | 进入 queue，entry 状态为 `pending`，proposal 状态为 `validated` |
+| 非法 proposal | 仍可入队留痕，但 entry 状态为 `rejected`，保留 validation report / audit |
+| 审批记录 | 每次审批都会生成 `TemplateApprovalDecision` |
+| 审批元数据 | 成功决策会写入 proposal 的 `reviewed_by`、`reviewed_at_tick`、`decision_notes` |
+
+六、WorldState 与 Snapshot
+
+| 项 | 内容 |
+|---|---|
+| WorldState | 新增 `template_approval_queue: TemplateApprovalQueue` |
+| summary | 新增 `template_approval_queue` 数量统计 |
+| snapshot save | 保存 `template_approval_queue` plain dict |
+| snapshot load | 老快照无字段时默认空队列 |
+| 固定模型边界 | 未新增模板实例、未新增 registry、未让 AI 写固定结构字段 |
+
+七、CLI
+
+| 命令 | 作用 |
+|---|---|
+| `templates queue [n]` | 查看最近的模板审批队列条目 |
+| `templates approve <proposal_id> <reviewer> [reason...]` | 审批通过一个 pending proposal |
+| `templates reject <proposal_id> <reviewer> [reason...]` | 拒绝一个 pending/frozen proposal |
+| `templates freeze <proposal_id> <reviewer> [reason...]` | 冻结一个 pending/approved proposal |
+| `templates withdraw <proposal_id> <reviewer> [reason...]` | 撤回一个 pending/frozen proposal |
+
+八、明确不做
+
+| 不做项 | 原因 |
+|---|---|
+| 不创建 approved template registry | V5-E 单独处理 registry 权威来源和查询 |
+| 不允许实例化 template instance | V5-F 才处理 approved template 的实例生成 |
+| 不让 AI 自动 approve | 审批必须通过显式规则/人工动作 |
+| 不新增 Python dataclass schema | 继续保持 JSON 模板而非代码结构扩展 |
+| 不开放 descriptor 自由新增 | 仍后置到第五阶段后半或更后阶段 |
+
+九、验证记录
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_open_structure_template` | 34 tests OK |
+| `python -m unittest discover -s tests` | 190 tests OK |
+| `python -m compileall src tests` | 通过 |
+
+十、下一批衔接
+
+| 批次 | 建议任务 |
+|---|---|
+| V5-E | 建立 approved template registry，只允许 `approved` 队列条目进入 registry |
+| V5-F | 基于 approved registry 生成 template instance |
+| V5-G | 模板版本、冻结、退休与迁移 |
+
+十一、结论
+
+V5-D 完成后，半开放结构模板已经具备从 proposal 到 validator，再到审批队列的完整前半流程。
+
+当前链路是：
+
+```text
+StructureTemplateProposal
+-> validate_template_proposal_detailed
+-> TemplateProposalAuditRecord
+-> TemplateApprovalQueueEntry
+-> TemplateApprovalDecision
+```
+
+它仍然没有打开实例化权限。只有后续 V5-E 将 approved proposal 转入 registry 后，系统才应允许 V5-F 创建模板实例。

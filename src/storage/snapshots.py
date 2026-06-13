@@ -16,6 +16,10 @@ from src.world.dynamic_structure import DynamicStructure
 from src.world.emergent_presence import EmergentPresence
 from src.world.faction import Faction
 from src.world.frame import StructureTemplate
+from src.world.open_structure_template import (
+    template_approval_queue_from_payload,
+    template_approval_queue_to_dict,
+)
 from src.world.pressure_thread import PressureThread
 from src.world.project import ProjectNetwork
 from src.world.presence import normalize_relic_state
@@ -53,6 +57,7 @@ def save_world_state(world: WorldState, path: Path = DEFAULT_SNAPSHOT_PATH) -> N
         "emergent_presences": {key: asdict(value) for key, value in world.emergent_presences.items()},
         "descriptor_profiles": {key: asdict(value) for key, value in world.descriptor_profiles.items()},
         "ai_proposal_audits": {key: asdict(value) for key, value in world.ai_proposal_audits.items()},
+        "template_approval_queue": template_approval_queue_to_dict(world.template_approval_queue),
         "pressure_threads": {key: asdict(value) for key, value in world.pressure_threads.items()},
         "relations": {key: asdict(value) for key, value in world.relations.items()},
         "event_stream": {
@@ -109,6 +114,9 @@ def load_world_state(path: Path = DEFAULT_SNAPSHOT_PATH) -> WorldState:
     world.ai_proposal_audits = {
         key: AIProposalAudit(**value) for key, value in payload.get("ai_proposal_audits", {}).items()
     }
+    world.template_approval_queue = template_approval_queue_from_payload(
+        payload.get("template_approval_queue", {})
+    )
     world.pressure_threads = {
         key: PressureThread(**value) for key, value in payload.get("pressure_threads", {}).items()
     }

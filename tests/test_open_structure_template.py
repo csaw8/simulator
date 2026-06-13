@@ -1,12 +1,26 @@
+import tempfile
 import unittest
+from pathlib import Path
 
+from src.config.defaults import DEFAULT_AI_CONFIG, DEFAULT_WORLD_CONFIG
+from src.config.models import AIConfig, WorldConfig
+from src.core.engine import WorldEngine
+from src.interfaces.commands import CommandContext, handle_command
+from src.storage.snapshots import load_world_state, save_world_state
+from src.world.builder import build_world
 from src.world.open_structure_template import (
     MAX_TEMPLATE_FIELDS,
+    TemplateApprovalQueue,
     build_template_proposal_audit_record,
+    decide_template_approval_entry,
     mark_template_proposal_validated,
     mark_template_proposal_validated_detailed,
+    pending_template_approval_entries,
     proposal_from_payload,
     proposal_to_dict,
+    submit_template_proposal_to_queue,
+    template_approval_queue_from_payload,
+    template_approval_queue_to_dict,
     template_proposal_audit_to_dict,
     template_proposal_report_to_dict,
     template_from_payload,
@@ -345,6 +359,203 @@ class OpenStructureTemplateTests(unittest.TestCase):
         self.assertFalse(report.accepted)
         self.assertEqual(proposal.status, "rejected")
         self.assertTrue(any("unsupported allowed_effect" in error for error in proposal.validation_errors))
+
+    def test_submit_template_proposal_to_queue_validates_and_queues_pending_entry(self) -> None:
+        queue = TemplateApprovalQueue()
+        proposal = proposal_from_payload(_valid_proposal_payload())
+
+        entry = submit_template_proposal_to_queue(queue, proposal, current_tick=31)
+
+        self.assertEqual(entry.status, "pending")
+        self.assertEqual(entry.submitted_at_tick, 31)
+        self.assertEqual(proposal.status, "validated")
+        self.assertTrue(entry.validation_report.accepted)
+        self.assertTrue(entry.validation_audit.accepted)
+        self.assertIn("proposal_salvage_pressure_marker", queue.entries)
+
+    def test_submit_invalid_template_proposal_to_queue_records_rejected_entry(self) -> None:
+        queue = TemplateApprovalQueue()
+        payload = _valid_proposal_payload()
+        payload["template"]["allowed_effects"] = ["direct_worldstate_write"]
+        proposal = proposal_from_payload(payload)
+
+        entry = submit_template_proposal_to_queue(queue, proposal, current_tick=32)
+
+        self.assertEqual(entry.status, "rejected")
+        self.assertEqual(proposal.status, "rejected")
+        self.assertFalse(entry.validation_report.accepted)
+        self.assertGreaterEqual(entry.validation_audit.issue_counts["safety"], 1)
+
+    def test_approval_queue_approve_updates_entry_and_review_metadata(self) -> None:
+        queue = TemplateApprovalQueue()
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(queue, proposal, current_tick=33)
+
+        decision = decide_template_approval_entry(
+            queue,
+            "proposal_salvage_pressure_marker",
+            action="approve",
+            reviewer="lead_designer",
+            current_tick=34,
+            reason="Schema is bounded and useful.",
+            notes=["Ready for registry in V5-E."],
+        )
+
+        entry = queue.entries["proposal_salvage_pressure_marker"]
+        self.assertTrue(decision.accepted)
+        self.assertEqual(entry.status, "approved")
+        self.assertEqual(proposal.reviewed_by, "lead_designer")
+        self.assertEqual(proposal.reviewed_at_tick, 34)
+        self.assertIn("Schema is bounded and useful.", proposal.decision_notes)
+        self.assertEqual(len(entry.decisions), 1)
+
+    def test_approval_queue_rejects_pending_entry(self) -> None:
+        queue = TemplateApprovalQueue()
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(queue, proposal, current_tick=35)
+
+        decision = decide_template_approval_entry(
+            queue,
+            "proposal_salvage_pressure_marker",
+            action="reject",
+            reviewer="lead_designer",
+            current_tick=36,
+            reason="Too close to an existing fixed model.",
+        )
+
+        entry = queue.entries["proposal_salvage_pressure_marker"]
+        self.assertTrue(decision.accepted)
+        self.assertEqual(entry.status, "rejected")
+        self.assertEqual(entry.decisions[0].action, "reject")
+
+    def test_approval_queue_freeze_then_withdraw_entry(self) -> None:
+        queue = TemplateApprovalQueue()
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(queue, proposal, current_tick=37)
+
+        freeze = decide_template_approval_entry(
+            queue,
+            "proposal_salvage_pressure_marker",
+            action="freeze",
+            reviewer="lead_designer",
+            current_tick=38,
+        )
+        withdraw = decide_template_approval_entry(
+            queue,
+            "proposal_salvage_pressure_marker",
+            action="withdraw",
+            reviewer="lead_designer",
+            current_tick=39,
+            reason="Deferred until registry rules are ready.",
+        )
+
+        entry = queue.entries["proposal_salvage_pressure_marker"]
+        self.assertTrue(freeze.accepted)
+        self.assertTrue(withdraw.accepted)
+        self.assertEqual(entry.status, "withdrawn")
+        self.assertEqual([decision.action for decision in entry.decisions], ["freeze", "withdraw"])
+
+    def test_approval_queue_rejects_invalid_decision_without_state_change(self) -> None:
+        queue = TemplateApprovalQueue()
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(queue, proposal, current_tick=40)
+
+        decision = decide_template_approval_entry(
+            queue,
+            "proposal_salvage_pressure_marker",
+            action="approve",
+            reviewer="",
+            current_tick=41,
+        )
+
+        entry = queue.entries["proposal_salvage_pressure_marker"]
+        self.assertFalse(decision.accepted)
+        self.assertEqual(decision.reason, "reviewer is required")
+        self.assertEqual(entry.status, "pending")
+        self.assertEqual(len(entry.decisions), 1)
+
+    def test_pending_template_approval_entries_only_returns_pending(self) -> None:
+        queue = TemplateApprovalQueue()
+        first = proposal_from_payload(_valid_proposal_payload())
+        second_payload = _valid_proposal_payload()
+        second_payload["proposal_id"] = "proposal_second_marker"
+        second_payload["template"]["template_id"] = "second_marker"
+        second = proposal_from_payload(second_payload)
+        submit_template_proposal_to_queue(queue, first, current_tick=42)
+        submit_template_proposal_to_queue(queue, second, current_tick=43)
+        decide_template_approval_entry(
+            queue,
+            "proposal_salvage_pressure_marker",
+            action="approve",
+            reviewer="lead_designer",
+            current_tick=44,
+        )
+
+        pending = pending_template_approval_entries(queue)
+
+        self.assertEqual([entry.proposal.proposal_id for entry in pending], ["proposal_second_marker"])
+
+    def test_template_approval_queue_round_trips_plain_data(self) -> None:
+        queue = TemplateApprovalQueue()
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(queue, proposal, current_tick=45)
+        decide_template_approval_entry(
+            queue,
+            "proposal_salvage_pressure_marker",
+            action="approve",
+            reviewer="lead_designer",
+            current_tick=46,
+            reason="Approved for later registry testing.",
+        )
+
+        payload = template_approval_queue_to_dict(queue)
+        loaded = template_approval_queue_from_payload(payload)
+
+        entry = loaded.entries["proposal_salvage_pressure_marker"]
+        self.assertEqual(entry.status, "approved")
+        self.assertEqual(entry.proposal.template.template_id, "salvage_pressure_marker")
+        self.assertTrue(entry.validation_report.accepted)
+        self.assertEqual(entry.validation_audit.proposal_id, "proposal_salvage_pressure_marker")
+        self.assertEqual(entry.decisions[0].action, "approve")
+
+    def test_template_approval_queue_is_preserved_in_snapshots(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(world.template_approval_queue, proposal, current_tick=world.current_tick)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "world.json"
+            save_world_state(world, path)
+            loaded = load_world_state(path)
+
+        self.assertIn("proposal_salvage_pressure_marker", loaded.template_approval_queue.entries)
+        entry = loaded.template_approval_queue.entries["proposal_salvage_pressure_marker"]
+        self.assertEqual(entry.status, "pending")
+        self.assertTrue(entry.validation_report.accepted)
+
+    def test_cli_templates_queue_and_approve_queued_proposal(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        proposal = proposal_from_payload(_valid_proposal_payload())
+        submit_template_proposal_to_queue(world.template_approval_queue, proposal, current_tick=world.current_tick)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            context = CommandContext(
+                engine=WorldEngine(world, ai_config=DEFAULT_AI_CONFIG),
+                world_config=WorldConfig(**DEFAULT_WORLD_CONFIG),
+                ai_config=AIConfig(**DEFAULT_AI_CONFIG),
+                snapshot_path=Path(tmp) / "world.json",
+            )
+            queue_output = handle_command(context, "templates queue 5")
+            approve_output = handle_command(
+                context,
+                "templates approve proposal_salvage_pressure_marker lead_designer bounded schema",
+            )
+
+        self.assertIn("Template approval queue:", queue_output)
+        self.assertIn("proposal_salvage_pressure_marker", queue_output)
+        self.assertIn("Template approval decision:", approve_output)
+        self.assertIn("result: accepted", approve_output)
+        self.assertEqual(world.template_approval_queue.entries["proposal_salvage_pressure_marker"].status, "approved")
 
 
 if __name__ == "__main__":

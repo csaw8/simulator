@@ -13,6 +13,7 @@ from src.world.frame import StructureTemplate
 from src.world.dynamic_structure import DynamicStructure
 from src.world.descriptor_profile import DescriptorProfile
 from src.world.emergent_presence import EmergentPresence
+from src.world.open_structure_template import TemplateApprovalQueue
 from src.world.pressure_thread import PressureThread
 from src.world.project import ProjectNetwork
 from src.world.relation import Relation
@@ -42,6 +43,7 @@ class WorldState:
     emergent_presences: dict[str, EmergentPresence] = field(default_factory=dict)
     descriptor_profiles: dict[str, DescriptorProfile] = field(default_factory=dict)
     ai_proposal_audits: dict[str, AIProposalAudit] = field(default_factory=dict)
+    template_approval_queue: TemplateApprovalQueue = field(default_factory=TemplateApprovalQueue)
     pressure_threads: dict[str, PressureThread] = field(default_factory=dict)
     relations: dict[str, Relation] = field(default_factory=dict)
     event_stream: EventStream = field(default_factory=EventStream)
@@ -78,6 +80,7 @@ class WorldState:
             "emergent_presences": len(self.emergent_presences),
             "descriptor_profiles": len(self.descriptor_profiles),
             "ai_proposal_audits": len(self.ai_proposal_audits),
+            "template_approval_queue": len(self.template_approval_queue.entries),
             "pressure_threads": len(self.pressure_threads),
             "relations": len(self.relations),
             "events": len(self.event_stream.events),
