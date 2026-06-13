@@ -6,6 +6,7 @@ from src.config.defaults import DEFAULT_AI_CONFIG, DEFAULT_WORLD_CONFIG
 from src.config.models import AIConfig, WorldConfig
 from src.core.engine import WorldEngine
 from src.interfaces.commands import CommandContext, handle_command
+from src.narrative.summaries import summarize_template_instance
 from src.storage.snapshots import load_world_state, save_world_state
 from src.world.builder import build_world
 from src.world.open_structure_template import (
@@ -879,6 +880,26 @@ class OpenStructureTemplateTests(unittest.TestCase):
         self.assertIn("Template instance created: instance_salvage_pressure_marker", create_output)
         self.assertIn("Template instances:", list_output)
         self.assertIn("instance_salvage_pressure_marker", list_output)
+
+    def test_template_instance_summary_and_cli_watch(self) -> None:
+        world = build_world(DEFAULT_WORLD_CONFIG)
+        world.approved_template_registry = _registry_with_approved_template()
+        instance = template_instance_from_payload(_valid_instance_payload())
+        create_template_instance(world.template_instances, world.approved_template_registry, instance)
+
+        summary = summarize_template_instance(world, "instance_salvage_pressure_marker", mode="full", view="truth")
+        with tempfile.TemporaryDirectory() as tmp:
+            context = CommandContext(
+                engine=WorldEngine(world, ai_config=DEFAULT_AI_CONFIG),
+                world_config=WorldConfig(**DEFAULT_WORLD_CONFIG),
+                ai_config=AIConfig(**DEFAULT_AI_CONFIG),
+                snapshot_path=Path(tmp) / "world.json",
+            )
+            output = handle_command(context, "watch template instance_salvage_pressure_marker full truth")
+
+        self.assertIn("TemplateInstance instance_salvage_pressure_marker", summary)
+        self.assertIn("pressure_level", summary)
+        self.assertIn("TemplateInstance instance_salvage_pressure_marker", output)
 
 
 if __name__ == "__main__":

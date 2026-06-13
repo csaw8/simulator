@@ -551,6 +551,84 @@ def summarize_dynamic_structure(
     return "\n".join(lines)
 
 
+def summarize_template_instance(
+    world: WorldState,
+    instance_id: str,
+    event_limit: int = 5,
+    mode: str = "brief",
+    view: str = "truth",
+    focus: str | None = None,
+) -> str:
+    """Return a compact summary for one semi-open template instance."""
+    instance = world.template_instances.instances.get(instance_id)
+    if instance is None:
+        return f"Unknown template instance: {instance_id}"
+
+    record = world.approved_template_registry.templates.get(instance.template_id)
+    player_view = is_player_view(view)
+    template_title = record.template.title if record is not None else instance.template_id
+    template_kind = record.template.template_kind if record is not None else "unknown"
+    lines = [
+        _summary_title(
+            world,
+            ref=instance.instance_id,
+            player_view=player_view,
+            player_label="结构实例",
+            truth_title=f"TemplateInstance {instance.instance_id}",
+        )
+    ]
+    lines.append(
+        _view_simple_line(
+            player_view=player_view,
+            label="template",
+            value=f"{template_title} ({instance.template_id} v{instance.template_version})",
+            player_value=template_title,
+        )
+    )
+    lines.append(_view_simple_line(player_view=player_view, label="kind", value=template_kind, player_value=template_kind))
+    lines.append(_view_simple_line(player_view=player_view, label="status", value=_player_status_value(instance.status), player_value=_player_status_value(instance.status)))
+    lines.append(_view_simple_line(player_view=player_view, label="scope", value=instance.scope_ref, player_value=instance.scope_ref))
+    lines.append(_view_simple_line(player_view=player_view, label="pressure_score", value=f"{instance.pressure_score:.2f}", player_value=f"{instance.pressure_score:.2f}"))
+    field_lines = _format_template_instance_fields(world, instance, player_view=player_view, limit=8 if mode == "full" else 4)
+    if field_lines:
+        lines.append("  字段:" if player_view else "  fields:")
+        lines.extend(field_lines)
+    if mode == "full":
+        if instance.linked_refs:
+            lines.append("  关联: " + "、".join(instance.linked_refs[:8]) if player_view else "  linked_refs: " + ", ".join(instance.linked_refs[:8]))
+        if instance.descriptor_values:
+            descriptor_text = "; ".join(
+                f"{category}={','.join(tags[:4])}" for category, tags in sorted(instance.descriptor_values.items())
+            )
+            lines.append("  描述标签: " + descriptor_text if player_view else "  descriptor_values: " + descriptor_text)
+    return "\n".join(lines)
+
+
+def _format_template_instance_fields(
+    world: WorldState,
+    instance,
+    *,
+    player_view: bool,
+    limit: int,
+) -> list[str]:
+    record = world.approved_template_registry.templates.get(instance.template_id)
+    labels = {}
+    if record is not None:
+        labels = {field_spec.field_id: field_spec.label for field_spec in record.template.fields}
+    lines: list[str] = []
+    for field_id, value in list(sorted(instance.field_values.items()))[:limit]:
+        label = labels.get(field_id, field_id)
+        rendered = _format_template_instance_value(value)
+        lines.append(f"    {label}: {rendered}" if player_view else f"    {field_id}: {rendered}")
+    return lines
+
+
+def _format_template_instance_value(value) -> str:
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
 def summarize_emergent_presence(
     world: WorldState,
     presence_id: str,

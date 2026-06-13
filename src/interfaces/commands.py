@@ -61,6 +61,7 @@ from src.narrative.summaries import (
     summarize_region_node,
     summarize_dynamic_structure,
     summarize_emergent_presence,
+    summarize_template_instance,
     summarize_relic,
     summarize_supply_line,
 )
@@ -119,6 +120,7 @@ def handle_command(context: CommandContext, raw_command: str) -> str:
             "  watch supply <id> [brief|full] [player|truth] [focus=theme]     Observe a supply line\n"
             "  watch dynamic <id> [brief|full] [player|truth] [focus=theme]    Observe a dynamic structure\n"
             "  watch emergent <id> [brief|full] [player|truth] [focus=theme]   Observe an emergent presence\n"
+            "  watch template <id> [brief|full] [player|truth] [focus=theme]   Observe a semi-open template instance\n"
             "  Add propose=dynamic or propose=emergent for dry-run proposals; use apply=dynamic or apply=emergent to write accepted proposals\n"
             "  propose emergent <region_id> [apply]  Create a bounded local emergent-presence sample\n"
             "  propose descriptor <ref_id> [apply]  Ask AI to choose descriptor tags from the approved pool\n"
@@ -770,6 +772,7 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             "watch supply <id> [brief|full] [player|truth] [focus=theme]"
             " | watch dynamic <id> [brief|full] [player|truth] [focus=theme]"
             " | watch emergent <id> [brief|full] [player|truth] [focus=theme]"
+            " | watch template <id> [brief|full] [player|truth] [focus=theme]"
         )
 
     target_type = parts[1].lower()
@@ -1097,7 +1100,19 @@ def _handle_watch(context: CommandContext, parts: list[str]) -> str:
             emergent_proposal_mode=emergent_proposal_mode,
         )
 
-    return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', 'supply', 'dynamic', or 'emergent'."
+    if target_type in {"template", "template_instance", "instance"}:
+        output = summarize_template_instance(
+            context.engine.world,
+            target_id,
+            event_limit=event_limit,
+            mode=mode,
+            view=view,
+            focus=focus,
+        )
+        save_world_state(context.engine.world, context.snapshot_path)
+        return output
+
+    return "Unknown watch target. Use 'region', 'character', 'civ', 'faction', 'project', 'node', 'relic', 'supply', 'dynamic', 'emergent', or 'template'."
 
 
 def _append_dynamic_structure_proposal_if_requested(

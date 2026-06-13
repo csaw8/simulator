@@ -1,0 +1,86 @@
+Terrarium Project V5 长跑与真实 API 验收
+
+日期：2026-06-13
+
+一、验收范围
+
+| 项 | 内容 |
+|---|---|
+| 长跑验收 | 验证第五阶段新增的 approval queue、approved registry、template instances、AI audit 在 tick 推进中保持有界 |
+| 真实 API 小测 | 使用已配置的 `DEEPSEEK_API_KEY` 进行一次低风险 dry-run，不写入世界 |
+| 观察层验收 | 验证 `TemplateInstance` 可通过摘要函数和 CLI `watch template` 被观察 |
+| 拆分验收 | 验证 `open_structure_template.py` 拆分后兼容导出仍可用 |
+
+二、拆分结果
+
+| 文件 | 用途 |
+|---|---|
+| `src/world/open_structure_template.py` | 兼容入口，保留旧 import |
+| `src/world/open_structure_template_core.py` | 原实现主体 |
+| `src/world/template_schema.py` | schema 相关 re-export |
+| `src/world/template_proposals.py` | proposal / validation / audit re-export |
+| `src/world/template_approval.py` | approval queue re-export |
+| `src/world/template_registry.py` | approved registry re-export |
+| `src/world/template_instances.py` | TemplateInstance / store / validator re-export |
+
+三、长跑验收
+
+新增测试：
+
+| 测试 | 内容 |
+|---|---|
+| `tests/test_v5_long_run.py` | 跑 12 tick 自动 smoke 验收，确认 V5 状态保持在容量上限内，并验证 snapshot round-trip |
+
+当前 CI 级验收使用 12 tick，避免常规测试超时。人工验收可将循环扩展到 100-300 tick。
+
+容量边界：
+
+| 项 | 上限 |
+|---|---:|
+| template approval queue | 40 |
+| approved template registry | 32 |
+| template instances | 120 |
+| AI proposal audits | 100 |
+
+四、真实 API 小测
+
+| 项 | 结果 |
+|---|---|
+| API Key | `DEEPSEEK_API_KEY` 已配置 |
+| 调用类型 | `propose_structure_template(... apply=False)` |
+| 是否写入世界 | 否 |
+| source | `deepseek` |
+| error | `None` |
+| accepted | `False` |
+| 拒绝原因 | DeepSeek 返回的模板缺失 title、template_kind、descriptor_profile_type、field_id、field_type、allowed_effects 等必要字段 |
+| 结论 | API 连接成功；validator 正确拦截不合格模板；prompt 后续可继续收紧 |
+
+这次小测说明真实 API 通路可用，但模型输出尚不稳定。当前系统安全边界有效：不合格 proposal 没有进入 approval queue，也没有写入 registry。
+
+五、观察层验收
+
+已新增：
+
+| 能力 | 说明 |
+|---|---|
+| `summarize_template_instance(...)` | 展示 template instance 的模板、状态、scope、pressure、字段值、linked_refs、descriptor_values |
+| `watch template <instance_id>` | CLI 观察一个半开放模板实例 |
+| `watch instance <instance_id>` | CLI alias |
+
+六、结论
+
+第五阶段新增结构已经具备以下闭环：
+
+```text
+AI / manual template proposal
+-> validator
+-> approval queue
+-> approved registry
+-> AI / manual template instance
+-> instance validator
+-> template instance store
+-> snapshot
+-> watch template
+```
+
+同时，真实 API 输出即使不合格，也会被 validator 拦截，不会污染世界状态。
