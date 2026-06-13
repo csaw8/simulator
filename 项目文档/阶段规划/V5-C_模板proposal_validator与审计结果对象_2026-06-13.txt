@@ -1,0 +1,92 @@
+Terrarium Project V5-C：模板 proposal validator 与审计结果对象
+
+日期：2026-06-13
+
+一、批次定位
+
+| 项 | 内容 |
+|---|---|
+| 所属阶段 | 第五阶段：半开放结构生成与 AI 模板提案阶段 |
+| 批次 | V5-C |
+| 核心目标 | 在已有 StructureTemplateProposal 基础上，提供可分类、可序列化、可审计的详细校验结果 |
+| 设计边界 | 不新增审批队列，不写入 WorldState，不启用 approved registry，不让 AI 绕过 validator |
+
+二、本批次实现内容
+
+| 类型 | 内容 |
+|---|---|
+| 新增对象 | `TemplateValidationIssue` |
+| 新增对象 | `TemplateProposalValidationReport` |
+| 新增对象 | `TemplateProposalAuditRecord` |
+| 新增函数 | `validate_template_proposal_detailed(...)` |
+| 新增函数 | `mark_template_proposal_validated_detailed(...)` |
+| 新增函数 | `build_template_proposal_audit_record(...)` |
+| 新增序列化 | `template_validation_issue_to_dict(...)` |
+| 新增序列化 | `template_proposal_report_to_dict(...)` |
+| 新增序列化 | `template_proposal_audit_to_dict(...)` |
+
+三、Issue 分类
+
+| 分类 | 用途 |
+|---|---|
+| `metadata` | proposal id、来源、创建 tick、proposal 状态等元数据问题 |
+| `schema` | template id、title、kind、状态、版本等模板骨架问题 |
+| `fields` | 字段数量、字段类型、text max_length、enum/ref 必要配置等字段问题 |
+| `lifecycle` | 生命周期状态集合、初始状态、终止状态等问题 |
+| `effects` | allowed_effects 缺失或非安全通道问题 |
+| `descriptor` | descriptor profile、category、tag 是否在 approved pool 中 |
+| `style` | style_constraints 是否存在、数量是否超限、profile 是否注册 |
+| `safety` | 直接写 WorldState、Python dataclass 扩展等越权能力标记 |
+
+四、保持兼容的部分
+
+| 项 | 说明 |
+|---|---|
+| 旧校验结果 | `TemplateValidationResult` 未替换，旧测试和旧调用仍可使用 |
+| 旧 proposal 状态逻辑 | `mark_template_proposal_validated(...)` 保持返回旧结果对象 |
+| 旧序列化 | `proposal_to_dict(...)` 与 `template_schema_to_dict(...)` 未改变结构 |
+| schema 权威性 | JSON snapshot / Python dataclass 仍是固定结构，V5-C 不扩展 WorldState |
+
+五、审计结果对象的定位
+
+`TemplateProposalAuditRecord` 是一条轻量审计草案，用于后续 V5-D 审批队列和 V5-E registry 读取。
+
+它现在只包含：
+
+| 字段 | 含义 |
+|---|---|
+| `audit_id` | 基于 proposal id 和 tick 生成的审计记录 ID |
+| `proposal_id` | 被校验的 proposal |
+| `tick` | 当前 tick |
+| `source` | proposal 来源 |
+| `accepted` | validator 是否接受 |
+| `issue_counts` | 按分类统计的问题数量 |
+| `report` | 完整详细校验报告 |
+
+六、明确不做
+
+| 不做项 | 原因 |
+|---|---|
+| 不写入 WorldState | 避免提前引入存档迁移和审批队列语义 |
+| 不新增 CLI 审批命令 | V5-D 才处理 pending / approve / reject 流程 |
+| 不生成 approved template registry | V5-E 才建立可实例化模板注册表 |
+| 不调用 AI | 本批次只建设 validator 与 audit 结果对象 |
+| 不自由新增 descriptor tag | 仍后置到第五阶段后半或更后阶段 |
+
+七、验证记录
+
+| 命令 | 结果 |
+|---|---|
+| `python -m unittest tests.test_open_structure_template` | 24 tests OK |
+
+八、下一批衔接
+
+| 批次 | 建议任务 |
+|---|---|
+| V5-D | 建立 proposal 审批队列，使用 V5-C report / audit 作为审批输入 |
+| V5-E | 建立 approved template registry，只有通过审批的模板可进入 registry |
+| V5-F | 基于 approved template 生成实例，而不是让 AI 任意生成 schema |
+
+九、结论
+
+V5-C 完成后，第五阶段从“能表达一个模板 proposal”推进到“能解释为什么一个 proposal 被接受或拒绝”。这为后续人工/规则审批、审计查询、长跑污染分析提供了稳定数据层，同时不提前打开结构写入权限。

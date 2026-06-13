@@ -25,6 +25,16 @@ ALLOWED_TEMPLATE_EFFECTS = {"event", "relation", "pressure_thread", "narrative_o
 ALLOWED_TEMPLATE_STATUSES = {"active", "cooling", "archived"}
 ALLOWED_TEMPLATE_REGISTRY_STATUSES = {"pending", "approved", "rejected", "frozen", "retired"}
 ALLOWED_TEMPLATE_PROPOSAL_STATUSES = {"pending", "validated", "rejected", "withdrawn"}
+ALLOWED_TEMPLATE_VALIDATION_ISSUE_CATEGORIES = {
+    "metadata",
+    "schema",
+    "fields",
+    "lifecycle",
+    "effects",
+    "descriptor",
+    "style",
+    "safety",
+}
 MAX_TEMPLATE_FIELDS = 8
 MAX_FIELD_ALLOWED_VALUES = 12
 MAX_DESCRIPTOR_TAGS_PER_TEMPLATE_CATEGORY = 8
@@ -82,6 +92,38 @@ class TemplateValidationResult:
 
     accepted: bool
     errors: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TemplateValidationIssue:
+    """Structured validation issue for audit and later approval tooling."""
+
+    category: str
+    message: str
+    path: str = ""
+
+
+@dataclass(slots=True)
+class TemplateProposalValidationReport:
+    """Detailed validation report for one structure template proposal."""
+
+    proposal_id: str
+    accepted: bool
+    issues: list[TemplateValidationIssue] = field(default_factory=list)
+    status_after_validation: str = "pending"
+
+
+@dataclass(slots=True)
+class TemplateProposalAuditRecord:
+    """Non-persistent audit draft for a template proposal validation pass."""
+
+    audit_id: str
+    proposal_id: str
+    tick: int
+    source: str
+    accepted: bool
+    issue_counts: dict[str, int]
+    report: TemplateProposalValidationReport
 
 
 @dataclass(slots=True)
@@ -215,6 +257,20 @@ def validate_template_proposal(proposal: StructureTemplateProposal) -> TemplateV
     return TemplateValidationResult(accepted=not errors, errors=errors)
 
 
+def validate_template_proposal_detailed(proposal: StructureTemplateProposal) -> TemplateProposalValidationReport:
+    """Validate a proposal and return categorized issues for audit consumers."""
+    issues: list[TemplateValidationIssue] = []
+    _validate_proposal_metadata_issues(proposal, issues)
+    _validate_template_schema_issues(proposal.template, issues)
+    accepted = not issues
+    return TemplateProposalValidationReport(
+        proposal_id=proposal.proposal_id,
+        accepted=accepted,
+        issues=issues,
+        status_after_validation="validated" if accepted else "rejected",
+    )
+
+
 def proposal_to_dict(proposal: StructureTemplateProposal) -> dict[str, object]:
     """Serialize a structure template proposal to plain data."""
     return {
@@ -231,12 +287,75 @@ def proposal_to_dict(proposal: StructureTemplateProposal) -> dict[str, object]:
     }
 
 
+def template_validation_issue_to_dict(issue: TemplateValidationIssue) -> dict[str, str]:
+    """Serialize one structured validation issue."""
+    return {
+        "category": issue.category,
+        "message": issue.message,
+        "path": issue.path,
+    }
+
+
+def template_proposal_report_to_dict(report: TemplateProposalValidationReport) -> dict[str, object]:
+    """Serialize a detailed proposal validation report."""
+    return {
+        "proposal_id": report.proposal_id,
+        "accepted": report.accepted,
+        "issues": [template_validation_issue_to_dict(issue) for issue in report.issues],
+        "status_after_validation": report.status_after_validation,
+    }
+
+
+def build_template_proposal_audit_record(
+    proposal: StructureTemplateProposal,
+    report: TemplateProposalValidationReport | None = None,
+    *,
+    current_tick: int = 0,
+) -> TemplateProposalAuditRecord:
+    """Build an audit record draft without mutating world state."""
+    validation_report = report or validate_template_proposal_detailed(proposal)
+    issue_counts = _count_issues_by_category(validation_report.issues)
+    audit_id = f"template_validation_{proposal.proposal_id or 'unknown'}_{max(0, current_tick)}"
+    return TemplateProposalAuditRecord(
+        audit_id=audit_id,
+        proposal_id=proposal.proposal_id,
+        tick=max(0, current_tick),
+        source=proposal.source,
+        accepted=validation_report.accepted,
+        issue_counts=issue_counts,
+        report=validation_report,
+    )
+
+
+def template_proposal_audit_to_dict(audit: TemplateProposalAuditRecord) -> dict[str, object]:
+    """Serialize a template proposal validation audit record."""
+    return {
+        "audit_id": audit.audit_id,
+        "proposal_id": audit.proposal_id,
+        "tick": audit.tick,
+        "source": audit.source,
+        "accepted": audit.accepted,
+        "issue_counts": dict(audit.issue_counts),
+        "report": template_proposal_report_to_dict(audit.report),
+    }
+
+
 def mark_template_proposal_validated(proposal: StructureTemplateProposal) -> TemplateValidationResult:
     """Validate and update proposal status without approving it."""
     result = validate_template_proposal(proposal)
     proposal.validation_errors = list(result.errors)
     proposal.status = "validated" if result.accepted else "rejected"
     return result
+
+
+def mark_template_proposal_validated_detailed(
+    proposal: StructureTemplateProposal,
+) -> TemplateProposalValidationReport:
+    """Validate and update proposal status while preserving categorized issues."""
+    report = validate_template_proposal_detailed(proposal)
+    proposal.validation_errors = [issue.message for issue in report.issues]
+    proposal.status = report.status_after_validation
+    return report
 
 
 def template_schema_to_dict(template: SemiOpenStructureTemplate) -> dict[str, object]:
@@ -358,7 +477,9 @@ def _validate_descriptor_constraints(template: SemiOpenStructureTemplate, errors
                 profile_type=template.descriptor_profile_type,
                 style_id=_primary_style(template),
             ):
-                errors.append(f"descriptor tag {tag_id!r} is not approved for {category}/{template.descriptor_profile_type}")
+                errors.append(
+                    f"descriptor tag {tag_id!r} is not approved for {category}/{template.descriptor_profile_type}"
+                )
 
 
 def _validate_style_constraints(template: SemiOpenStructureTemplate, errors: list[str]) -> None:
@@ -369,6 +490,297 @@ def _validate_style_constraints(template: SemiOpenStructureTemplate, errors: lis
     for style_id in template.style_constraints:
         if style_id not in DEFAULT_WORLD_STYLE_PROFILES:
             errors.append(f"unknown style_constraint {style_id!r}")
+
+
+def _add_issue(
+    issues: list[TemplateValidationIssue],
+    category: str,
+    message: str,
+    *,
+    path: str = "",
+) -> None:
+    safe_category = category if category in ALLOWED_TEMPLATE_VALIDATION_ISSUE_CATEGORIES else "schema"
+    issues.append(TemplateValidationIssue(category=safe_category, message=message, path=path))
+
+
+def _validate_proposal_metadata_issues(
+    proposal: StructureTemplateProposal,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    if not proposal.proposal_id:
+        _add_issue(issues, "metadata", "proposal_id is required", path="proposal_id")
+    if not proposal.rationale:
+        _add_issue(issues, "metadata", "rationale is required", path="rationale")
+    if not proposal.source:
+        _add_issue(issues, "metadata", "source is required", path="source")
+    if proposal.created_at_tick < 0:
+        _add_issue(issues, "metadata", "created_at_tick must be non-negative", path="created_at_tick")
+    if proposal.status not in ALLOWED_TEMPLATE_PROPOSAL_STATUSES:
+        _add_issue(
+            issues,
+            "metadata",
+            f"unsupported proposal status {proposal.status!r}",
+            path="status",
+        )
+
+
+def _validate_template_schema_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    _validate_identity_issues(template, issues)
+    _validate_field_issues(template, issues)
+    _validate_lifecycle_issues(template, issues)
+    _validate_effect_issues(template, issues)
+    _validate_descriptor_constraint_issues(template, issues)
+    _validate_style_constraint_issues(template, issues)
+    _validate_safety_issues(template, issues)
+
+
+def _validate_identity_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    if not template.template_id:
+        _add_issue(issues, "schema", "template_id is required", path="template.template_id")
+    if len(template.template_id) > MAX_ID_LENGTH:
+        _add_issue(issues, "schema", "template_id is too long", path="template.template_id")
+    if not template.title:
+        _add_issue(issues, "schema", "title is required", path="template.title")
+    if template.template_kind not in ALLOWED_TEMPLATE_KINDS:
+        _add_issue(
+            issues,
+            "schema",
+            f"unsupported template_kind {template.template_kind!r}",
+            path="template.template_kind",
+        )
+    if template.descriptor_profile_type not in DESCRIPTOR_PROFILE_TYPES:
+        _add_issue(
+            issues,
+            "descriptor",
+            f"unsupported descriptor_profile_type {template.descriptor_profile_type!r}",
+            path="template.descriptor_profile_type",
+        )
+    if template.status not in ALLOWED_TEMPLATE_REGISTRY_STATUSES:
+        _add_issue(
+            issues,
+            "schema",
+            f"unsupported template status {template.status!r}",
+            path="template.status",
+        )
+    if template.version < 1:
+        _add_issue(issues, "schema", "version must be positive", path="template.version")
+
+
+def _validate_field_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    if not template.fields:
+        _add_issue(issues, "fields", "at least one field is required", path="template.fields")
+        return
+    if len(template.fields) > MAX_TEMPLATE_FIELDS:
+        _add_issue(issues, "fields", f"too many fields; max is {MAX_TEMPLATE_FIELDS}", path="template.fields")
+    seen: set[str] = set()
+    for index, field_spec in enumerate(template.fields):
+        field_path = f"template.fields[{index}]"
+        if not field_spec.field_id:
+            _add_issue(issues, "fields", "field.field_id is required", path=f"{field_path}.field_id")
+        if field_spec.field_id in seen:
+            _add_issue(
+                issues,
+                "fields",
+                f"duplicate field_id {field_spec.field_id!r}",
+                path=f"{field_path}.field_id",
+            )
+        seen.add(field_spec.field_id)
+        if not field_spec.label:
+            _add_issue(
+                issues,
+                "fields",
+                f"field {field_spec.field_id!r} label is required",
+                path=f"{field_path}.label",
+            )
+        if field_spec.field_type not in ALLOWED_TEMPLATE_FIELD_TYPES:
+            _add_issue(
+                issues,
+                "fields",
+                f"field {field_spec.field_id!r} has unsupported field_type {field_spec.field_type!r}",
+                path=f"{field_path}.field_type",
+            )
+        if field_spec.field_type == "enum" and not field_spec.allowed_values:
+            _add_issue(
+                issues,
+                "fields",
+                f"enum field {field_spec.field_id!r} requires allowed_values",
+                path=f"{field_path}.allowed_values",
+            )
+        if field_spec.field_type in {"ref", "ref_list"} and not field_spec.ref_types:
+            _add_issue(
+                issues,
+                "fields",
+                f"ref field {field_spec.field_id!r} requires ref_types",
+                path=f"{field_path}.ref_types",
+            )
+        if field_spec.field_type == "text":
+            if field_spec.max_length is None:
+                _add_issue(
+                    issues,
+                    "fields",
+                    f"text field {field_spec.field_id!r} requires max_length",
+                    path=f"{field_path}.max_length",
+                )
+            elif field_spec.max_length > MAX_TEXT_LENGTH:
+                _add_issue(
+                    issues,
+                    "fields",
+                    f"text field {field_spec.field_id!r} max_length exceeds {MAX_TEXT_LENGTH}",
+                    path=f"{field_path}.max_length",
+                )
+        if len(field_spec.allowed_values) > MAX_FIELD_ALLOWED_VALUES:
+            _add_issue(
+                issues,
+                "fields",
+                f"field {field_spec.field_id!r} has too many allowed_values",
+                path=f"{field_path}.allowed_values",
+            )
+
+
+def _validate_lifecycle_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    lifecycle = template.lifecycle
+    if not lifecycle.allowed_statuses:
+        _add_issue(
+            issues,
+            "lifecycle",
+            "lifecycle.allowed_statuses is required",
+            path="template.lifecycle.allowed_statuses",
+        )
+    for status in lifecycle.allowed_statuses + lifecycle.terminal_statuses:
+        if status not in ALLOWED_TEMPLATE_STATUSES:
+            _add_issue(
+                issues,
+                "lifecycle",
+                f"unsupported lifecycle status {status!r}",
+                path="template.lifecycle",
+            )
+    if lifecycle.initial_status not in lifecycle.allowed_statuses:
+        _add_issue(
+            issues,
+            "lifecycle",
+            "lifecycle.initial_status must be in allowed_statuses",
+            path="template.lifecycle.initial_status",
+        )
+    for status in lifecycle.terminal_statuses:
+        if status not in lifecycle.allowed_statuses:
+            _add_issue(
+                issues,
+                "lifecycle",
+                f"terminal status {status!r} must be in allowed_statuses",
+                path="template.lifecycle.terminal_statuses",
+            )
+
+
+def _validate_effect_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    if not template.allowed_effects:
+        _add_issue(issues, "effects", "allowed_effects is required", path="template.allowed_effects")
+    for index, effect in enumerate(template.allowed_effects):
+        if effect not in ALLOWED_TEMPLATE_EFFECTS:
+            category = "safety" if effect == "direct_worldstate_write" else "effects"
+            _add_issue(
+                issues,
+                category,
+                f"unsupported allowed_effect {effect!r}",
+                path=f"template.allowed_effects[{index}]",
+            )
+
+
+def _validate_descriptor_constraint_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    for category, tag_ids in template.descriptor_constraints.items():
+        category_path = f"template.descriptor_constraints.{category}"
+        if category not in DESCRIPTOR_CATEGORIES:
+            _add_issue(
+                issues,
+                "descriptor",
+                f"unsupported descriptor category {category!r}",
+                path=category_path,
+            )
+            continue
+        if len(tag_ids) > MAX_DESCRIPTOR_TAGS_PER_TEMPLATE_CATEGORY:
+            _add_issue(
+                issues,
+                "descriptor",
+                f"too many descriptor tags for {category!r}",
+                path=category_path,
+            )
+        for index, tag_id in enumerate(tag_ids):
+            if not is_approved_descriptor_tag(
+                tag_id,
+                category=category,
+                profile_type=template.descriptor_profile_type,
+                style_id=_primary_style(template),
+            ):
+                _add_issue(
+                    issues,
+                    "descriptor",
+                    f"descriptor tag {tag_id!r} is not approved for {category}/{template.descriptor_profile_type}",
+                    path=f"{category_path}[{index}]",
+                )
+
+
+def _validate_style_constraint_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    if not template.style_constraints:
+        _add_issue(issues, "style", "style_constraints is required", path="template.style_constraints")
+    if len(template.style_constraints) > MAX_STYLE_CONSTRAINTS:
+        _add_issue(
+            issues,
+            "style",
+            f"too many style_constraints; max is {MAX_STYLE_CONSTRAINTS}",
+            path="template.style_constraints",
+        )
+    for index, style_id in enumerate(template.style_constraints):
+        if style_id not in DEFAULT_WORLD_STYLE_PROFILES:
+            _add_issue(
+                issues,
+                "style",
+                f"unknown style_constraint {style_id!r}",
+                path=f"template.style_constraints[{index}]",
+            )
+
+
+def _validate_safety_issues(
+    template: SemiOpenStructureTemplate,
+    issues: list[TemplateValidationIssue],
+) -> None:
+    unsafe_notes = {"direct_worldstate_write", "python_dataclass", "worldstate_field"}
+    for index, note in enumerate(template.safety_notes):
+        normalized = _normalize_id(note)
+        if any(marker in normalized for marker in unsafe_notes):
+            _add_issue(
+                issues,
+                "safety",
+                f"safety note contains blocked capability marker {note!r}",
+                path=f"template.safety_notes[{index}]",
+            )
+
+
+def _count_issues_by_category(issues: list[TemplateValidationIssue]) -> dict[str, int]:
+    counts = {category: 0 for category in sorted(ALLOWED_TEMPLATE_VALIDATION_ISSUE_CATEGORIES)}
+    for issue in issues:
+        category = issue.category if issue.category in counts else "schema"
+        counts[category] += 1
+    return {category: count for category, count in counts.items() if count}
 
 
 def _primary_style(template: SemiOpenStructureTemplate) -> str:

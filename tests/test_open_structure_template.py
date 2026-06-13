@@ -2,11 +2,16 @@ import unittest
 
 from src.world.open_structure_template import (
     MAX_TEMPLATE_FIELDS,
+    build_template_proposal_audit_record,
     mark_template_proposal_validated,
+    mark_template_proposal_validated_detailed,
     proposal_from_payload,
     proposal_to_dict,
+    template_proposal_audit_to_dict,
+    template_proposal_report_to_dict,
     template_from_payload,
     template_schema_to_dict,
+    validate_template_proposal_detailed,
     validate_template_proposal,
     validate_template_payload,
     validate_template_schema,
@@ -252,6 +257,92 @@ class OpenStructureTemplateTests(unittest.TestCase):
         result = mark_template_proposal_validated(proposal)
 
         self.assertFalse(result.accepted)
+        self.assertEqual(proposal.status, "rejected")
+        self.assertTrue(any("unsupported allowed_effect" in error for error in proposal.validation_errors))
+
+    def test_detailed_proposal_validation_accepts_valid_proposal(self) -> None:
+        proposal = proposal_from_payload(_valid_proposal_payload())
+
+        report = validate_template_proposal_detailed(proposal)
+
+        self.assertTrue(report.accepted)
+        self.assertEqual(report.proposal_id, "proposal_salvage_pressure_marker")
+        self.assertEqual(report.issues, [])
+        self.assertEqual(report.status_after_validation, "validated")
+
+    def test_detailed_proposal_validation_categorizes_metadata_and_field_issues(self) -> None:
+        payload = _valid_proposal_payload()
+        payload["proposal_id"] = ""
+        payload["rationale"] = ""
+        payload["template"]["fields"][0].pop("max_length")
+        proposal = proposal_from_payload(payload)
+
+        report = validate_template_proposal_detailed(proposal)
+
+        categories = {issue.category for issue in report.issues}
+        self.assertFalse(report.accepted)
+        self.assertIn("metadata", categories)
+        self.assertIn("fields", categories)
+        self.assertTrue(any(issue.path == "proposal_id" for issue in report.issues))
+        self.assertTrue(any(issue.path.endswith(".max_length") for issue in report.issues))
+
+    def test_detailed_proposal_validation_categorizes_descriptor_style_lifecycle_and_safety(self) -> None:
+        payload = _valid_proposal_payload()
+        payload["template"]["allowed_effects"] = ["direct_worldstate_write"]
+        payload["template"]["descriptor_constraints"]["behavior"] = ["dragon_blood"]
+        payload["template"]["style_constraints"] = ["unregistered_style"]
+        payload["template"]["lifecycle"]["initial_status"] = "archived"
+        payload["template"]["lifecycle"]["allowed_statuses"] = ["active", "cooling"]
+        payload["template"]["safety_notes"] = ["Requests python_dataclass expansion."]
+        proposal = proposal_from_payload(payload)
+
+        report = validate_template_proposal_detailed(proposal)
+
+        categories = {issue.category for issue in report.issues}
+        self.assertFalse(report.accepted)
+        self.assertIn("descriptor", categories)
+        self.assertIn("style", categories)
+        self.assertIn("lifecycle", categories)
+        self.assertIn("safety", categories)
+
+    def test_detailed_report_serializes_to_plain_data(self) -> None:
+        payload = _valid_proposal_payload()
+        payload["template"]["fields"][0].pop("max_length")
+        proposal = proposal_from_payload(payload)
+
+        report_payload = template_proposal_report_to_dict(validate_template_proposal_detailed(proposal))
+
+        self.assertEqual(report_payload["proposal_id"], "proposal_salvage_pressure_marker")
+        self.assertFalse(report_payload["accepted"])
+        self.assertEqual(report_payload["status_after_validation"], "rejected")
+        self.assertEqual(report_payload["issues"][0]["category"], "fields")
+        self.assertIn("message", report_payload["issues"][0])
+        self.assertIn("path", report_payload["issues"][0])
+
+    def test_build_template_proposal_audit_record_summarizes_issue_counts(self) -> None:
+        payload = _valid_proposal_payload()
+        payload["proposal_id"] = ""
+        payload["template"]["allowed_effects"] = ["direct_worldstate_write"]
+        proposal = proposal_from_payload(payload)
+
+        audit = build_template_proposal_audit_record(proposal, current_tick=22)
+        audit_payload = template_proposal_audit_to_dict(audit)
+
+        self.assertEqual(audit.audit_id, "template_validation_unknown_22")
+        self.assertEqual(audit.tick, 22)
+        self.assertFalse(audit.accepted)
+        self.assertGreaterEqual(audit.issue_counts["metadata"], 1)
+        self.assertGreaterEqual(audit.issue_counts["safety"], 1)
+        self.assertEqual(audit_payload["report"]["status_after_validation"], "rejected")
+
+    def test_mark_template_proposal_validated_detailed_updates_status_and_errors(self) -> None:
+        payload = _valid_proposal_payload()
+        payload["template"]["allowed_effects"] = ["direct_worldstate_write"]
+        proposal = proposal_from_payload(payload)
+
+        report = mark_template_proposal_validated_detailed(proposal)
+
+        self.assertFalse(report.accepted)
         self.assertEqual(proposal.status, "rejected")
         self.assertTrue(any("unsupported allowed_effect" in error for error in proposal.validation_errors))
 
